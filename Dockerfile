@@ -3,13 +3,14 @@
 # Base stage with common dependencies
 FROM python:3.12-slim as base
 
-# Install LaTeX and other required system packages
+# Install LaTeX, Graphviz, and other required system packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     texlive-latex-base \
     texlive-latex-extra \
     texlive-fonts-recommended \
     texlive-latex-recommended \
+    graphviz \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -62,7 +63,7 @@ USER devuser
 # Default command
 CMD ["/bin/bash"]
 
-# Production stage - for DistroBox and production use  
+# Production stage - for DistroBox and production use
 FROM base as production
 
 # Copy the entire project

@@ -1,6 +1,8 @@
 # GEDCOM Visualizer
 
-A collection of Python scripts for parsing and visualizing GEDCOM genealogy files. This project provides tools to extract, format, and present genealogical data in human-readable formats.
+A collection of Python scripts for parsing and visualizing GEDCOM genealogy files.
+This project provides tools to extract, format, 
+and present genealogical data in human-readable formats with A4 paper formatting for European use.
 
 ## Features
 
@@ -8,7 +10,7 @@ The project consists of three main scripts:
 
 1. **List and Search** (`list_search.py`) - Browse and search individuals in a GEDCOM file
 2. **Generate AsciiDoc** (`generate_asciidoc.py`) - Create formatted documents for individuals
-3. **Convert to PDF** (`convert_to_pdf.py`) - Transform AsciiDoc documents into PDF format
+3. **Convert to PDF** (`convert_to_pdf.py`) - Transform AsciiDoc documents into A4 PDF format
 
 ## Development Environment Options
 
@@ -35,7 +37,8 @@ See [`.devcontainer/README.md`](.devcontainer/README.md) for detailed instructio
 
 ### Option 2: Traditional Container Setup (Ubuntu 24.04)
 
-This tool is designed to run inside a container on Ubuntu 24.04 using Podman and DistroBox. The container includes all necessary dependencies (Python, LaTeX, and required libraries).
+This tool is designed to run inside a container on Ubuntu 24.04 using Podman and DistroBox.
+The container includes all necessary dependencies (Python, LaTeX, Graphviz, and required libraries).
 
 #### Prerequisites
 
@@ -74,13 +77,18 @@ distrobox enter gedcom-viz
 
 #### Mounting GEDCOM Files
 
-Your home directory is automatically mounted inside the DistroBox container, so you can access your GEDCOM files directly. Place your GEDCOM files anywhere in your home directory and access them from within the container using the same paths.
+Your home directory is automatically mounted inside the DistroBox container,
+so you can access your GEDCOM files directly.
+Place your GEDCOM files anywhere in your home directory and access them 
+from within the container using the same paths.
 
-For example, if your GEDCOM file is at `~/Documents/family.ged` on your host system, you can access it at `~/Documents/family.ged` inside the container.
+For example, if your GEDCOM file is at `~/Documents/family.ged` on your host system,
+you can access it at `~/Documents/family.ged` inside the container.
 
 ## Usage Inside the Container
 
-**Important:** All Python scripts should be executed inside the container environment. After entering the container with `distrobox enter gedcom-viz`, you can use the following commands.
+**Important:** All Python scripts should be executed inside the container environment.
+After entering the container with `distrobox enter gedcom-viz`, you can use the following commands.
 
 The package provides three convenient command-line tools:
 
@@ -148,7 +156,8 @@ gedcom-convert ~/Documents/john_smith.adoc -o ~/Documents/john_smith.pdf
 
 ### Using the Sample GEDCOM File
 
-A sample GEDCOM file is provided in the `examples/` directory for testing. The project files are available at `/workspace/` inside the container:
+A sample GEDCOM file is provided in the `examples/` directory for testing.
+The project files are available at `/workspace/` inside the container:
 
 ```bash
 # Inside the container
@@ -225,9 +234,16 @@ optional arguments:
 
 ## Dependencies
 
+### System Dependencies
+- **Graphviz** - Graph visualization software (for family tree diagrams)
+- **LaTeX/TeXLive** - Document preparation system (for PDF generation)
+
+### Python Dependencies
 - **python-gedcom** - GEDCOM file parsing library
 - **sphinx** - Documentation generator (used for PDF conversion)
 - **sphinx-rtd-theme** - Read the Docs theme for Sphinx
+
+All dependencies are automatically installed in the development container environment.
 
 ## License
 

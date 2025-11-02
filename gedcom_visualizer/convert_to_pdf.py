@@ -22,6 +22,7 @@ def create_sphinx_config(source_dir, title="GEDCOM Document"):
         title: Title for the document
     """
     conf_content = f"""# Configuration file for Sphinx documentation builder
+# Configured for European A4 paper standard
 
 import os
 import sys
@@ -33,7 +34,7 @@ author = 'GEDCOM Visualizer'
 release = '1.0'
 
 # General configuration
-extensions = []
+extensions = ['sphinx.ext.graphviz']
 
 # The suffix of source filenames
 source_suffix = {{
@@ -49,13 +50,19 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # HTML output options
 html_theme = 'sphinx_rtd_theme'
 
-# LaTeX output options for PDF
+# LaTeX output options for PDF - compact layout, A4 paper
 latex_engine = 'pdflatex'
 latex_elements = {{
-    'papersize': 'letterpaper',
-    'pointsize': '10pt',
-    'preamble': '',
+    'papersize': 'a4paper',
+    'pointsize': '11pt',
+    'preamble': r'''
+\\usepackage{{geometry}}
+\\geometry{{margin=2cm}}
+\\setcounter{{tocdepth}}{{3}}
+\\setcounter{{secnumdepth}}{{3}}
+    ''',
     'figure_align': 'htbp',
+    'fncychap': '',
 }}
 
 # LaTeX documents
@@ -125,6 +132,53 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
             converted = line.replace("** ", "  - ", 1)
             converted = re.sub(r"\*([^\*]+?)\*", r"**\1**", converted)
             rst_lines.append(converted)
+
+        # Convert AsciiDoc graphviz block to RST
+        elif line.startswith("[graphviz"):
+            # Start of graphviz block - parse the directive
+            match = re.match(r'\[graphviz,\s*"([^"]*)",\s*([^\]]*)\]', line)
+            if match:
+                name = match.group(1)
+                # Start RST graphviz directive
+                rst_lines.append(".. graphviz::")
+                rst_lines.append(f"   :name: {name}")
+                rst_lines.append("   :align: center")
+                rst_lines.append("")
+                i += 1
+                # Skip the opening ---- line
+                if i < len(lines) and lines[i].strip() == "----":
+                    i += 1
+                # Copy DOT content until closing ----
+                while i < len(lines) and lines[i].strip() != "----":
+                    rst_lines.append("   " + lines[i].rstrip())
+                    i += 1
+                # Skip the closing ---- line (i will be incremented at end of loop)
+                rst_lines.append("")
+            else:
+                rst_lines.append(line)
+
+        # Convert AsciiDoc image directive to RST
+        elif line.startswith("image::"):
+            # Parse AsciiDoc image syntax: image::filename[alt text, options]
+            match = re.match(r"image::([^\[]+)\[([^\]]*)\]", line)
+            if match:
+                filename = match.group(1)
+                alt_and_options = match.group(2)
+
+                # Extract alt text (first part before comma)
+                alt_text = (
+                    alt_and_options.split(",")[0].strip()
+                    if alt_and_options
+                    else "Image"
+                )
+
+                # Convert to RST image directive
+                rst_lines.append(f".. image:: {filename}")
+                rst_lines.append(f"   :alt: {alt_text}")
+                rst_lines.append("   :align: center")
+                rst_lines.append("")
+            else:
+                rst_lines.append(line)
 
         # Convert bold text (*text* to **text**) in other lines
         elif "*" in line:
@@ -211,6 +265,37 @@ def build_pdf(sphinx_source_dir, output_dir):
         return None
 
 
+def copy_referenced_images(asciidoc_file, source_dir, dest_dir):
+    """Copy image files referenced in AsciiDoc to destination directory.
+
+    Args:
+        asciidoc_file: Path to AsciiDoc file
+        source_dir: Directory where images are located
+        dest_dir: Directory where images should be copied
+    """
+    try:
+        with open(asciidoc_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Find all image:: references
+        image_pattern = r"image::([^\[]+)\["
+        matches = re.findall(image_pattern, content)
+
+        for image_filename in matches:
+            image_filename = image_filename.strip()
+            source_path = os.path.join(source_dir, image_filename)
+            dest_path = os.path.join(dest_dir, image_filename)
+
+            if os.path.exists(source_path):
+                shutil.copy2(source_path, dest_path)
+                print(f"Copied image: {image_filename}")
+            else:
+                print(f"Warning: Image file not found: {source_path}")
+
+    except Exception as e:
+        print(f"Warning: Error copying images: {e}")
+
+
 def convert_asciidoc_to_pdf(asciidoc_file, output_file=None, title=None):
     """Convert AsciiDoc file to PDF.
 
@@ -241,6 +326,10 @@ def convert_asciidoc_to_pdf(asciidoc_file, output_file=None, title=None):
         rst_file = os.path.join(temp_dir, "index.rst")
         convert_asciidoc_to_rst(asciidoc_file, rst_file)
 
+        # Copy any referenced image files to the Sphinx source directory
+        asciidoc_dir = os.path.dirname(os.path.abspath(asciidoc_file))
+        copy_referenced_images(asciidoc_file, asciidoc_dir, temp_dir)
+
         # Build PDF
         pdf_path = build_pdf(temp_dir, temp_dir)
 
@@ -260,7 +349,9 @@ def convert_asciidoc_to_pdf(asciidoc_file, output_file=None, title=None):
 
 def main():
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(description="Convert AsciiDoc to PDF using Sphinx")
+    parser = argparse.ArgumentParser(
+        description="Convert AsciiDoc to PDF using Sphinx (A4 paper format)"
+    )
     parser.add_argument(
         "asciidoc_file",
         nargs="?",
