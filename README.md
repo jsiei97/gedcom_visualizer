@@ -125,7 +125,7 @@ gedcom-convert ~/Documents/john_smith.adoc -o ~/Documents/john_smith.pdf
 
 ### Using the Sample GEDCOM File
 
-A sample GEDCOM file is provided in the `examples/` directory for testing:
+A sample GEDCOM file is provided in the `examples/` directory for testing. The project files are available at `/workspace/` inside the container:
 
 ```bash
 # Inside the container
