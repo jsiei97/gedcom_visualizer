@@ -8,6 +8,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     texlive-latex-base \
     texlive-latex-extra \
+    texlive-fonts-recommended \
+    texlive-latex-recommended \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -29,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     build-essential \
     sudo \
+    xxd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install additional Python development tools

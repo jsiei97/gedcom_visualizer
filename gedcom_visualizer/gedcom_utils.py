@@ -21,6 +21,7 @@ def preprocess_gedcom_file(file_path):
     - Missing CONC/CONT for multi-line content
     - Invalid characters and encoding issues
     - Level violations (lines that jump too many levels)
+    - Tab-indented lines from MyHeritage exports
     
     Args:
         file_path: Path to the original GEDCOM file
@@ -28,21 +29,32 @@ def preprocess_gedcom_file(file_path):
     Returns:
         Path to the preprocessed temporary file
     """
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+    # Read the file and handle BOM if present
+    with open(file_path, 'r', encoding='utf-8-sig', errors='ignore') as f:
         lines = f.readlines()
     
     processed_lines = []
-    current_level = 0
     last_valid_level = 0
     i = 0
     
     while i < len(lines):
         line = lines[i].rstrip('\n\r')
-        original_line = line
         
         # Skip empty lines
         if not line.strip():
-            processed_lines.append(line)
+            processed_lines.append("")
+            i += 1
+            continue
+        
+        # Handle tab-indented lines (common in MyHeritage exports)
+        if line.startswith('\t') or line.startswith('    '):
+            # This is an improperly formatted continuation line
+            cleaned_content = line.strip()
+            if cleaned_content and processed_lines:
+                # Use the last valid level + 1 for CONC
+                conc_level = last_valid_level + 1
+                conc_line = f"{conc_level} CONC {cleaned_content}"
+                processed_lines.append(conc_line)
             i += 1
             continue
         
@@ -60,7 +72,6 @@ def preprocess_gedcom_file(file_path):
                 level = corrected_level
             
             # Update tracking variables
-            current_level = level
             last_valid_level = level
             
             # Check for problematic content that spans multiple lines
@@ -68,7 +79,7 @@ def preprocess_gedcom_file(file_path):
             if i + 1 < len(lines):
                 next_line = lines[i + 1].strip()
                 
-                # If next line doesn't start with level and isn't empty, 
+                # If next line doesn't start with level and isn't empty,
                 # it's likely continuation content
                 if next_line and not re.match(r'^\d+\s', next_line):
                     # Collect all continuation lines
@@ -81,7 +92,10 @@ def preprocess_gedcom_file(file_path):
                             continue
                         if re.match(r'^\d+\s', cont_line):
                             break
-                        continuation_lines.append(cont_line)
+                        # Skip tab-indented lines, handle them separately
+                        if not (lines[j].startswith('\t') or
+                                lines[j].startswith('    ')):
+                            continuation_lines.append(cont_line)
                         j += 1
                     
                     # Add the main line
@@ -92,7 +106,8 @@ def preprocess_gedcom_file(file_path):
                         # Clean up the continuation line content
                         cleaned_content = cont_line.strip()
                         if cleaned_content:
-                            processed_lines.append(f"{level + 1} CONC {cleaned_content}")
+                            conc_line = f"{level + 1} CONC {cleaned_content}"
+                            processed_lines.append(conc_line)
                     
                     # Skip the continuation lines we just processed
                     i = j
@@ -102,7 +117,7 @@ def preprocess_gedcom_file(file_path):
             processed_lines.append(line)
             
         else:
-            # This line doesn't start with a level number - it's likely a continuation
+            # This line doesn't start with level number - continuation line
             # that got improperly split. Make it a proper CONC line
             
             if processed_lines and line.strip():
@@ -110,14 +125,19 @@ def preprocess_gedcom_file(file_path):
                 conc_level = last_valid_level + 1
                 cleaned_content = line.strip()
                 
-                # Check if this looks like it should be part of the previous CONC
+                # Check if this should be part of the previous CONC
                 prev_line = processed_lines[-1] if processed_lines else ""
-                if "CONC" in prev_line and not cleaned_content.startswith(('http', 'https', '<')):
+                starts_with_url = cleaned_content.startswith(('http', 'https'))
+                starts_with_tag = cleaned_content.startswith('<')
+                
+                if ("CONC" in prev_line and not starts_with_url and 
+                    not starts_with_tag):
                     # Merge with previous CONC line
                     processed_lines[-1] = prev_line + " " + cleaned_content
                 else:
                     # Add as new CONC line
-                    processed_lines.append(f"{conc_level} CONC {cleaned_content}")
+                    conc_line = f"{conc_level} CONC {cleaned_content}"
+                    processed_lines.append(conc_line)
             elif line.strip():
                 # No previous line context, make it a level 1 CONC
                 processed_lines.append(f"1 CONC {line.strip()}")
@@ -149,7 +169,7 @@ def parse_gedcom_lenient(file_path):
     temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.ged', delete=False, encoding='utf-8')
     
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(file_path, 'r', encoding='utf-8-sig', errors='ignore') as f:
             lines = f.readlines()
         
         cleaned_lines = []
@@ -283,7 +303,7 @@ def validate_gedcom_format(file_path, max_lines_to_check=1000):
     line_count = 0
     
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(file_path, 'r', encoding='utf-8-sig', errors='ignore') as f:
             for line_num, line in enumerate(f, 1):
                 if line_count >= max_lines_to_check:
                     break
