@@ -12,18 +12,55 @@ The project consists of three main scripts:
 
 ## Installation
 
-### Prerequisites
+### Option 1: Using Docker/Podman (Recommended)
+
+The easiest way to use this tool is with the provided Docker container, which includes all dependencies.
+
+#### Build the container:
+
+```bash
+./build-container.sh
+```
+
+This script uses Podman to build the container image.
+
+#### Run with Podman:
+
+```bash
+# Interactive shell
+podman run -it --rm gedcom-visualizer:latest
+
+# Mount your GEDCOM files
+podman run -it --rm -v /path/to/gedcom/files:/data gedcom-visualizer:latest
+```
+
+#### Use with DistroBox:
+
+```bash
+# Create a DistroBox container
+distrobox create --image gedcom-visualizer:latest --name gedcom-viz
+
+# Enter the container
+distrobox enter gedcom-viz
+
+# Now you can use the tools directly
+gedcom-list /data/family.ged
+```
+
+### Option 2: Local Installation
+
+#### Prerequisites
 
 - Python 3.8 or higher
 - LaTeX distribution (for PDF generation)
 
-### Install Python Dependencies
+#### Install Python Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Install LaTeX (for PDF generation)
+#### Install LaTeX (for PDF generation)
 
 **Ubuntu/Debian:**
 ```bash
