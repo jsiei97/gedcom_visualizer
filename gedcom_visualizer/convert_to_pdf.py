@@ -7,6 +7,7 @@ This script sets up a Sphinx project and converts an AsciiDoc document to PDF fo
 import sys
 import argparse
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -111,20 +112,25 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
             rst_lines.append('~' * len(subsection))
             rst_lines.append('')
         
-        # Convert bold text (*text* to **text**)
-        elif '*' in line and not line.startswith('*'):
-            # Match and convert AsciiDoc bold syntax *word* to RST **word**
-            import re
-            converted = re.sub(r'\*([^\*]+?)\*', r'**\1**', line)
-            rst_lines.append(converted)
-        
         # Convert list items (*)
         elif line.startswith('* '):
-            rst_lines.append(line.replace('* ', '- ', 1))
+            # Convert list markers and any bold text within
+            converted = line.replace('* ', '- ', 1)
+            converted = re.sub(r'\*([^\*]+?)\*', r'**\1**', converted)
+            rst_lines.append(converted)
         
         # Convert nested list items (**)
         elif line.startswith('** '):
-            rst_lines.append(line.replace('** ', '  - ', 1))
+            # Convert list markers and any bold text within
+            converted = line.replace('** ', '  - ', 1)
+            converted = re.sub(r'\*([^\*]+?)\*', r'**\1**', converted)
+            rst_lines.append(converted)
+        
+        # Convert bold text (*text* to **text**) in other lines
+        elif '*' in line:
+            # Match and convert AsciiDoc bold syntax *word* to RST **word**
+            converted = re.sub(r'\*([^\*]+?)\*', r'**\1**', line)
+            rst_lines.append(converted)
         
         # Keep other lines as is
         else:
