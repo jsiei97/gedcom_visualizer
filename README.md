@@ -9,8 +9,8 @@ and present genealogical data in human-readable formats with A4 paper formatting
 The project consists of three main scripts:
 
 1. **List and Search** (`list_search.py`) - Browse and search individuals in a GEDCOM file
-2. **Generate AsciiDoc** (`generate_asciidoc.py`) - Create formatted documents for individuals
-3. **Convert to PDF** (`convert_to_pdf.py`) - Transform AsciiDoc documents into A4 PDF format
+2. **Generate AsciiDoc** (`generate_asciidoc.py`) - Create formatted documents with smart name handling (married/maiden names) and personalized chapter titles
+3. **Convert to PDF** (`convert_to_pdf.py`) - Transform AsciiDoc documents into A4 PDF format with Unicode support
 
 ## Development Environment Options
 
@@ -117,10 +117,13 @@ gedcom-generate ~/Documents/family.ged @I1@ -o output.adoc
 ```
 
 The document includes:
-- Personal information (name, birth, death)
-- Parents
-- Spouse(s)
-- Children
+- Personal information with personalized chapter titles using married names when available (e.g., "Simonsson Personal Information")
+- Smart name handling: shows married names as primary with maiden names indicated (e.g., "Ingrid Monica Simonsson (née Carlsson)")
+- Comprehensive biographical data (birth, death, residence history, life events)
+- Family tree diagram with proper spouse positioning
+- Parents, spouse(s), and children relationships
+- Source references and data quality information
+- Contact information and record metadata
 
 ### Script 3: Convert to PDF
 

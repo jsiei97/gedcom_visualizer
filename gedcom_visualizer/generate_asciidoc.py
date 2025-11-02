@@ -10,6 +10,7 @@ import sys
 import argparse
 import re
 import subprocess
+import html
 from pathlib import Path
 from gedcom.element.individual import IndividualElement
 from .gedcom_utils import load_gedcom_robust
@@ -117,6 +118,89 @@ def format_name(individual):
     return "Unknown"
 
 
+def format_name_with_maiden_married(individual):
+    """Format individual's name including both maiden and married names when available.
+
+    Args:
+        individual: IndividualElement object
+
+    Returns:
+        Formatted name string with maiden/married information
+    """
+    name_parts = individual.get_name()
+    if not name_parts or not name_parts[0]:
+        return "Unknown"
+
+    given_name = name_parts[0]
+    birth_surname = name_parts[1] if len(name_parts) > 1 and name_parts[1] else ""
+
+    # Check for married name
+    married_name = None
+    for element in individual.get_child_elements():
+        if element.get_tag() == "NAME":
+            for name_element in element.get_child_elements():
+                if name_element.get_tag() == "_MARNM" and name_element.get_value():
+                    married_name = name_element.get_value().strip()
+                    break
+            if married_name:
+                break
+
+    # Format the name based on what information we have
+    if married_name and birth_surname and married_name != birth_surname:
+        # Both maiden and married names - use married name as primary, show maiden in parentheses
+        return f"{given_name} {married_name} (born {birth_surname})"
+    elif married_name:
+        # Only married name available
+        return f"{given_name} {married_name}"
+    elif birth_surname:
+        # Only birth surname available
+        return f"{given_name} {birth_surname}"
+    else:
+        # Only given name available
+        return given_name
+
+
+def clean_html_source_text(text):
+    """Clean HTML-encoded text from GEDCOM sources for better readability.
+
+    Args:
+        text: HTML-encoded text string
+
+    Returns:
+        Cleaned text with HTML entities decoded and line breaks properly formatted
+    """
+    if not text:
+        return text
+
+    # Handle double-encoded HTML entities (common in GEDCOM exports)
+    # First pass: decode &amp;lt; to &lt; etc.
+    cleaned = html.unescape(text)
+
+    # Second pass: decode remaining entities like &lt; to < etc.
+    cleaned = html.unescape(cleaned)
+
+    # Replace HTML line breaks with AsciiDoc line break syntax
+    cleaned = cleaned.replace("<br>", " +\n** ")  # Create proper AsciiDoc sub-bullets
+    cleaned = cleaned.replace("<BR>", " +\n** ")
+    cleaned = cleaned.replace("<br/>", " +\n** ")
+    cleaned = cleaned.replace("<BR/>", " +\n** ")
+
+    # Clean up any remaining HTML tags (simple approach)
+    cleaned = re.sub(r"<[^>]+>", "", cleaned)
+
+    # Clean up multiple spaces and normalize whitespace, but preserve the line structure we created
+    lines = cleaned.split("\n")
+    cleaned_lines = []
+    for line in lines:
+        line = re.sub(r"\s+", " ", line.strip())
+        if line:
+            cleaned_lines.append(line)
+
+    cleaned = "\n".join(cleaned_lines)
+
+    return cleaned
+
+
 def create_family_tree_dot_content(gedcom_parser, individual):
     """Create Graphviz DOT content for a family tree diagram.
 
@@ -128,7 +212,7 @@ def create_family_tree_dot_content(gedcom_parser, individual):
         String containing DOT content for the family tree
     """
     family_info = get_family_info(gedcom_parser, individual)
-    main_name = format_name(individual)
+    main_name = format_name_with_maiden_married(individual)
     main_id = individual.get_pointer()
 
     # Create DOT content for Graphviz
@@ -155,7 +239,7 @@ def create_family_tree_dot_content(gedcom_parser, individual):
     if family_info["parents"]:
         dot_content.append("    // Parents")
         for relation, parent in family_info["parents"]:
-            parent_name = format_name(parent)
+            parent_name = format_name_with_maiden_married(parent)
             parent_id = parent.get_pointer()
             parent_birth = parent.get_birth_data()
             birth_year = ""
@@ -182,7 +266,7 @@ def create_family_tree_dot_content(gedcom_parser, individual):
         dot_content.append("    // Spouse(s) - positioned at same level as main person")
         spouse_ids = []
         for i, spouse in enumerate(family_info["spouses"]):
-            spouse_name = format_name(spouse)
+            spouse_name = format_name_with_maiden_married(spouse)
             spouse_id = spouse.get_pointer()
             spouse_ids.append(spouse_id)
             spouse_birth = spouse.get_birth_data()
@@ -211,7 +295,7 @@ def create_family_tree_dot_content(gedcom_parser, individual):
     if family_info["children"]:
         dot_content.append("    // Children")
         for child in family_info["children"]:
-            child_name = format_name(child)
+            child_name = format_name_with_maiden_married(child)
             child_id = child.get_pointer()
             child_birth = child.get_birth_data()
             birth_year = ""
@@ -246,7 +330,7 @@ def create_family_tree_diagram(gedcom_parser, individual, output_dir):
         Path to the generated PNG file
     """
     family_info = get_family_info(gedcom_parser, individual)
-    main_name = format_name(individual)
+    main_name = format_name_with_maiden_married(individual)
     main_id = individual.get_pointer()
 
     # Create DOT content for Graphviz
@@ -273,7 +357,7 @@ def create_family_tree_diagram(gedcom_parser, individual, output_dir):
     if family_info["parents"]:
         dot_content.append("    // Parents")
         for relation, parent in family_info["parents"]:
-            parent_name = format_name(parent)
+            parent_name = format_name_with_maiden_married(parent)
             parent_id = parent.get_pointer()
             parent_birth = parent.get_birth_data()
             birth_year = ""
@@ -300,7 +384,7 @@ def create_family_tree_diagram(gedcom_parser, individual, output_dir):
         dot_content.append("    // Spouse(s) - positioned at same level as main person")
         spouse_ids = []
         for i, spouse in enumerate(family_info["spouses"]):
-            spouse_name = format_name(spouse)
+            spouse_name = format_name_with_maiden_married(spouse)
             spouse_id = spouse.get_pointer()
             spouse_ids.append(spouse_id)
             spouse_birth = spouse.get_birth_data()
@@ -330,7 +414,7 @@ def create_family_tree_diagram(gedcom_parser, individual, output_dir):
     if family_info["children"]:
         dot_content.append("    // Children")
         for child in family_info["children"]:
-            child_name = format_name(child)
+            child_name = format_name_with_maiden_married(child)
             child_id = child.get_pointer()
             child_birth = child.get_birth_data()
             birth_year = ""
@@ -538,12 +622,43 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
         individual: Individual element to generate document for
         output_file: Optional output file path (defaults to family_tree.adoc)
     """
-    name = format_name(individual)
+    # Use enhanced name formatting for document title (prioritizes married names)
+    document_title_name = format_name_with_maiden_married(individual)
+    # For document title, we want just the name without the "(born ...)" part
+    if " (born " in document_title_name:
+        document_title_name = document_title_name.split(" (born ")[0]
+
     pointer = individual.get_pointer()
+
+    # Extract surname for chapter title, prioritizing married name
+    surname = None
+
+    # First check for married name (_MARNM tag)
+    for element in individual.get_child_elements():
+        if element.get_tag() == "NAME":
+            for name_element in element.get_child_elements():
+                if name_element.get_tag() == "_MARNM" and name_element.get_value():
+                    surname = name_element.get_value().strip()
+                    break
+            if surname:
+                break
+
+    # If no married name, use birth surname
+    if not surname:
+        name_parts = individual.get_name()
+        if name_parts and len(name_parts) > 1 and name_parts[1]:
+            surname = name_parts[1].strip()
+
+    # Set chapter title
+    if surname:
+        chapter_title = f"== {surname} Personal Information"
+    else:
+        # Fallback to generic title if no surname available
+        chapter_title = "== Personal Information"
 
     # Start building the AsciiDoc content
     lines = []
-    lines.append(f"= {name}")
+    lines.append(f"= {document_title_name}")
 
     # Add table of contents unless disabled
     if not getattr(generate_asciidoc, "_no_toc", False):
@@ -554,9 +669,11 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
         lines.append(":numbered:")
 
     lines.append("")
-    lines.append("== Personal Information")
+    lines.append(chapter_title)
     lines.append("")
-    lines.append(f"*Full Name:* {name}")
+    # Use enhanced name formatting that shows maiden/married names
+    enhanced_name = format_name_with_maiden_married(individual)
+    lines.append(f"*Full Name:* {enhanced_name}")
     lines.append("")
     lines.append(f"*ID:* {pointer}")
     lines.append("")
@@ -627,7 +744,7 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
             lines.append("==== Parents")
             lines.append("")
             for relation, parent in family_info["parents"]:
-                parent_name = format_name(parent)
+                parent_name = format_name_with_maiden_married(parent)
                 parent_id = parent.get_pointer()
                 lines.append(f"* *{relation}:* {parent_name} ({parent_id})")
 
@@ -644,7 +761,7 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
             lines.append("==== Spouse(s)")
             lines.append("")
             for spouse in family_info["spouses"]:
-                spouse_name = format_name(spouse)
+                spouse_name = format_name_with_maiden_married(spouse)
                 spouse_id = spouse.get_pointer()
                 lines.append(f"* *{spouse_name}* ({spouse_id})")
 
@@ -661,7 +778,7 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
             lines.append("==== Children")
             lines.append("")
             for child in family_info["children"]:
-                child_name = format_name(child)
+                child_name = format_name_with_maiden_married(child)
                 child_id = child.get_pointer()
                 lines.append(f"* *{child_name}* ({child_id})")
 
@@ -793,7 +910,8 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
                     if source.get("event"):
                         lines.append(f"** Event Type: {source['event']}")
                     if source.get("data_text"):
-                        lines.append(f"** Details: {source['data_text']}")
+                        cleaned_details = clean_html_source_text(source["data_text"])
+                        lines.append(f"** Details: {cleaned_details}")
                     if source["notes"]:
                         lines.append(f"** Notes: {', '.join(source['notes'])}")
                     lines.append("")
