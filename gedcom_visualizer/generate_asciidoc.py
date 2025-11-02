@@ -648,31 +648,14 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
 
     pointer = individual.get_pointer()
 
-    # Extract surname for chapter title, prioritizing married name
-    surname = None
+    # Use full married name for chapter title, matching the document title approach
+    chapter_name = format_name_with_maiden_married(individual)
+    # For chapter title, we want just the name without the "(born ...)" part
+    if " (born " in chapter_name:
+        chapter_name = chapter_name.split(" (born ")[0]
 
-    # First check for married name (_MARNM tag)
-    for element in individual.get_child_elements():
-        if element.get_tag() == "NAME":
-            for name_element in element.get_child_elements():
-                if name_element.get_tag() == "_MARNM" and name_element.get_value():
-                    surname = name_element.get_value().strip()
-                    break
-            if surname:
-                break
-
-    # If no married name, use birth surname
-    if not surname:
-        name_parts = individual.get_name()
-        if name_parts and len(name_parts) > 1 and name_parts[1]:
-            surname = name_parts[1].strip()
-
-    # Set chapter title
-    if surname:
-        chapter_title = f"== {surname} Personal Information"
-    else:
-        # Fallback to generic title if no surname available
-        chapter_title = "== Personal Information"
+    # Set chapter title using the full name
+    chapter_title = f"== {chapter_name} - Personal Information"
 
     # Start building the AsciiDoc content
     lines = []
