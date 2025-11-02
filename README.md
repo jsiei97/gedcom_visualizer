@@ -10,85 +10,69 @@ The project consists of three main scripts:
 2. **Generate AsciiDoc** (`generate_asciidoc.py`) - Create formatted documents for individuals
 3. **Convert to PDF** (`convert_to_pdf.py`) - Transform AsciiDoc documents into PDF format
 
-## Installation
+## Installation and Setup (Ubuntu 24.04)
 
-### Option 1: Using Docker/Podman (Recommended)
+This tool is designed to run inside a container on Ubuntu 24.04 using Podman and DistroBox. The container includes all necessary dependencies (Python, LaTeX, and required libraries).
 
-The easiest way to use this tool is with the provided Docker container, which includes all dependencies.
+### Prerequisites
 
-#### Build the container:
+- Ubuntu 24.04 LTS
+- Podman installed: `sudo apt-get install podman`
+- DistroBox installed: Follow instructions at https://github.com/89luca89/distrobox
+
+### Step 1: Build the Container
+
+Build the container image using the provided script:
 
 ```bash
 ./build-container.sh
 ```
 
-This script uses Podman to build the container image.
+This script uses Podman to build a container image named `gedcom-visualizer:latest` with all dependencies pre-installed.
 
-#### Run with Podman:
+### Step 2: Create and Start the DistroBox Container
+
+Use the provided script to create a DistroBox container:
 
 ```bash
-# Interactive shell
-podman run -it --rm gedcom-visualizer:latest
-
-# Mount your GEDCOM files
-podman run -it --rm -v /path/to/gedcom/files:/data gedcom-visualizer:latest
+./run-distrobox.sh
 ```
 
-#### Use with DistroBox:
+This script will:
+- Check if the container image exists (and build it if necessary)
+- Create a DistroBox container named `gedcom-viz`
+- Set up the environment for running the tools
+
+To enter the container after creation:
 
 ```bash
-# Create a DistroBox container
-distrobox create --image gedcom-visualizer:latest --name gedcom-viz
-
-# Enter the container
 distrobox enter gedcom-viz
-
-# Now you can use the tools directly
-gedcom-list /data/family.ged
 ```
 
-### Option 2: Local Installation
+### Mounting GEDCOM Files
 
-#### Prerequisites
+Your home directory is automatically mounted inside the DistroBox container, so you can access your GEDCOM files directly. Place your GEDCOM files anywhere in your home directory and access them from within the container using the same paths.
 
-- Python 3.8 or higher
-- LaTeX distribution (for PDF generation)
+For example, if your GEDCOM file is at `~/Documents/family.ged` on your host system, you can access it at `~/Documents/family.ged` inside the container.
 
-#### Install Python Dependencies
+## Usage Inside the Container
 
-```bash
-pip install -r requirements.txt
-```
+**Important:** All Python scripts should be executed inside the container environment. After entering the container with `distrobox enter gedcom-viz`, you can use the following commands.
 
-#### Install LaTeX (for PDF generation)
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install texlive-latex-base texlive-latex-extra
-```
-
-**macOS:**
-```bash
-brew install --cask mactex
-```
-
-**Windows:**
-Download and install MiKTeX from https://miktex.org/
-
-## Usage
+The package provides three convenient command-line tools:
 
 ### Script 1: List and Search GEDCOM File
 
 List all individuals in a GEDCOM file:
 
 ```bash
-python3 gedcom_visualizer/list_search.py examples/sample.ged
+gedcom-list ~/Documents/family.ged
 ```
 
 Search for individuals by name:
 
 ```bash
-python3 gedcom_visualizer/list_search.py examples/sample.ged --search "Smith"
+gedcom-list ~/Documents/family.ged --search "Smith"
 ```
 
 This script helps you find the ID of an individual to use with other scripts.
@@ -98,7 +82,7 @@ This script helps you find the ID of an individual to use with other scripts.
 Generate a human-readable AsciiDoc document for a specific individual:
 
 ```bash
-python3 gedcom_visualizer/generate_asciidoc.py examples/sample.ged @I1@ -o output.adoc
+gedcom-generate ~/Documents/family.ged @I1@ -o output.adoc
 ```
 
 The document includes:
@@ -112,25 +96,43 @@ The document includes:
 Convert an AsciiDoc document to PDF format:
 
 ```bash
-python3 gedcom_visualizer/convert_to_pdf.py output.adoc -o output.pdf
+gedcom-convert output.adoc -o output.pdf
 ```
 
 ### Complete Workflow Example
 
+Here's a complete example workflow inside the container:
+
 ```bash
+# Enter the container
+distrobox enter gedcom-viz
+
 # 1. List all individuals to find the ID
-python3 gedcom_visualizer/list_search.py examples/sample.ged
+gedcom-list ~/Documents/family.ged
 
-# 2. Generate AsciiDoc for John Smith (@I1@)
-python3 gedcom_visualizer/generate_asciidoc.py examples/sample.ged @I1@ -o john_smith.adoc
+# 2. Search for a specific person
+gedcom-list ~/Documents/family.ged --search "John"
 
-# 3. Convert to PDF
-python3 gedcom_visualizer/convert_to_pdf.py john_smith.adoc -o john_smith.pdf
+# 3. Generate AsciiDoc for John Smith (@I1@)
+gedcom-generate ~/Documents/family.ged @I1@ -o ~/Documents/john_smith.adoc
+
+# 4. Convert to PDF
+gedcom-convert ~/Documents/john_smith.adoc -o ~/Documents/john_smith.pdf
+
+# The PDF is now available at ~/Documents/john_smith.pdf
+# You can access it from your host system at the same path
 ```
 
-## Sample GEDCOM File
+### Using the Sample GEDCOM File
 
-A sample GEDCOM file is provided in the `examples/` directory for testing and demonstration purposes.
+A sample GEDCOM file is provided in the `examples/` directory for testing:
+
+```bash
+# Inside the container
+gedcom-list /workspace/examples/sample.ged
+gedcom-generate /workspace/examples/sample.ged @I1@ -o /tmp/sample.adoc
+gedcom-convert /tmp/sample.adoc -o /tmp/sample.pdf
+```
 
 ## Project Structure
 
@@ -143,16 +145,20 @@ gedcom_visualizer/
 │   └── convert_to_pdf.py      # Script 3: Convert to PDF
 ├── examples/                   # Example files
 │   └── sample.ged             # Sample GEDCOM file
+├── Dockerfile                 # Container definition
+├── build-container.sh         # Script to build the container
+├── run-distrobox.sh          # Script to set up DistroBox
 ├── requirements.txt           # Python dependencies
+├── setup.py                   # Package installation
 └── README.md                  # This file
 ```
 
 ## Command Line Options
 
-### list_search.py
+### gedcom-list
 
 ```
-usage: list_search.py [-h] [-s TERM] gedcom_file
+usage: gedcom-list [-h] [-s TERM] gedcom_file
 
 positional arguments:
   gedcom_file           Path to the GEDCOM file
@@ -163,10 +169,10 @@ optional arguments:
                         Search for individuals by name
 ```
 
-### generate_asciidoc.py
+### gedcom-generate
 
 ```
-usage: generate_asciidoc.py [-h] [-o FILE] gedcom_file individual_id
+usage: gedcom-generate [-h] [-o FILE] gedcom_file individual_id
 
 positional arguments:
   gedcom_file           Path to the GEDCOM file
@@ -178,10 +184,10 @@ optional arguments:
                         Output file path (default: stdout)
 ```
 
-### convert_to_pdf.py
+### gedcom-convert
 
 ```
-usage: convert_to_pdf.py [-h] [-o OUTPUT] [-t TITLE] asciidoc_file
+usage: gedcom-convert [-h] [-o OUTPUT] [-t TITLE] asciidoc_file
 
 positional arguments:
   asciidoc_file         Path to the AsciiDoc file
