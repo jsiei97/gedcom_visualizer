@@ -10,17 +10,40 @@ The project consists of three main scripts:
 2. **Generate AsciiDoc** (`generate_asciidoc.py`) - Create formatted documents for individuals
 3. **Convert to PDF** (`convert_to_pdf.py`) - Transform AsciiDoc documents into PDF format
 
-## Installation and Setup (Ubuntu 24.04)
+## Development Environment Options
+
+### Option 1: VS Code Development Container (Recommended)
+
+The easiest way to get started is using the VS Code Development Container:
+
+1. **Prerequisites**:
+   - VS Code with the Dev Containers extension
+   - Docker or Podman installed
+
+2. **Setup**:
+   - Open the project in VS Code
+   - Click "Reopen in Container" when prompted, or
+   - Press `Ctrl+Shift+P` → "Dev Containers: Reopen in Container"
+
+3. **Benefits**:
+   - Automatic setup of all dependencies
+   - Pre-configured debugging and tasks
+   - Consistent environment across all developers
+   - No need to manually install Python packages
+
+See [`.devcontainer/README.md`](.devcontainer/README.md) for detailed instructions.
+
+### Option 2: Traditional Container Setup (Ubuntu 24.04)
 
 This tool is designed to run inside a container on Ubuntu 24.04 using Podman and DistroBox. The container includes all necessary dependencies (Python, LaTeX, and required libraries).
 
-### Prerequisites
+#### Prerequisites
 
 - Ubuntu 24.04 LTS
 - Podman installed: `sudo apt-get install podman`
 - DistroBox installed: Follow instructions at https://github.com/89luca89/distrobox
 
-### Step 1: Build the Container
+#### Step 1: Build the Container
 
 Build the container image using the provided script:
 
@@ -30,7 +53,7 @@ Build the container image using the provided script:
 
 This script uses Podman to build a container image named `gedcom-visualizer:latest` with all dependencies pre-installed.
 
-### Step 2: Create and Start the DistroBox Container
+#### Step 2: Create and Start the DistroBox Container
 
 Use the provided script to create a DistroBox container:
 
@@ -49,7 +72,7 @@ To enter the container after creation:
 distrobox enter gedcom-viz
 ```
 
-### Mounting GEDCOM Files
+#### Mounting GEDCOM Files
 
 Your home directory is automatically mounted inside the DistroBox container, so you can access your GEDCOM files directly. Place your GEDCOM files anywhere in your home directory and access them from within the container using the same paths.
 

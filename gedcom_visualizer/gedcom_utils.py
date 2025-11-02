@@ -136,8 +136,8 @@ def preprocess_gedcom_file(file_path):
 def parse_gedcom_lenient(file_path):
     """Parse a GEDCOM file with lenient error handling.
     
-    This method manually parses the GEDCOM structure and is more tolerant
-    of format violations than the standard parser.
+    This method creates a cleaner version of the GEDCOM file by removing
+    problematic lines and then attempts to parse it with the standard parser.
     
     Args:
         file_path: Path to the GEDCOM file
@@ -145,71 +145,55 @@ def parse_gedcom_lenient(file_path):
     Returns:
         Parser object with parsed GEDCOM data
     """
-    from gedcom.element.element import Element
-    from gedcom.element.individual import IndividualElement
-    from gedcom.element.family import FamilyElement
+    # Create a cleaned version of the file
+    temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.ged', delete=False, encoding='utf-8')
     
-    # Create a new parser and manually build the structure
-    parser = Parser()
-    
-    # Read file and build elements manually
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        lines = f.readlines()
-    
-    elements = {}
-    current_stack = []
-    root_element = Element(0, "", "HEAD", "", "")
-    elements["HEAD"] = root_element
-    parser._Parser__root_element = root_element
-    
-    for line_num, line in enumerate(lines, 1):
-        line = line.strip()
-        if not line:
-            continue
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        
+        cleaned_lines = []
+        skip_next = False
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
             
-        # Try to parse the line
-        try:
-            # Match GEDCOM line format: LEVEL TAG [VALUE] or LEVEL POINTER TAG [VALUE]
-            match = re.match(r'^(\d+)\s+(@[^@]*@\s+)?(\w+)(\s+(.*))?$', line)
-            if not match:
-                continue  # Skip malformed lines
+            # Skip empty lines
+            if not line:
+                continue
                 
-            level = int(match.group(1))
-            pointer = match.group(2).strip() if match.group(2) else ""
-            tag = match.group(3)
-            value = match.group(5) if match.group(5) else ""
+            # Check if this line matches basic GEDCOM format
+            if re.match(r'^\d+\s+', line):
+                # Check for level violations
+                level_match = re.match(r'^(\d+)\s', line)
+                if level_match:
+                    level = int(level_match.group(1))
+                    
+                    # If this is a reasonable level (0-9), include it
+                    if level <= 9:
+                        # Skip lines with problematic content that might cause parser issues
+                        if not any(prob in line.lower() for prob in ['http://', 'https://', '<a ', 'href=']):
+                            cleaned_lines.append(line)
+                        else:
+                            # Convert problematic content to a simple NOTE
+                            level_prefix = line.split()[0]
+                            cleaned_lines.append(f"{level_prefix} NOTE Contains web content (cleaned)")
             
-            # Create element based on tag type
-            if tag == "INDI":
-                element = IndividualElement(level, pointer, tag, value, "")
-            elif tag == "FAM":
-                element = FamilyElement(level, pointer, tag, value, "")
-            else:
-                element = Element(level, pointer, tag, value, "")
-            
-            # Add to parser structure
-            if pointer:
-                elements[pointer] = element
-                
-            # Handle hierarchy - find parent
-            while current_stack and current_stack[-1].get_level() >= level:
-                current_stack.pop()
-                
-            if current_stack:
-                parent = current_stack[-1]
-                parent.add_child_element(element)
-                element.set_parent_element(parent)
-            else:
-                root_element.add_child_element(element)
-                element.set_parent_element(root_element)
-                
-            current_stack.append(element)
-            
-        except Exception as e:
-            # Skip problematic lines but continue parsing
-            continue
-    
-    return parser
+        # Write cleaned content
+        for line in cleaned_lines:
+            temp_file.write(line + '\n')
+        temp_file.close()
+        
+        # Try to parse the cleaned file
+        parser = Parser()
+        parser.parse_file(temp_file.name)
+        
+        return parser
+        
+    finally:
+        # Clean up temporary file
+        if temp_file and Path(temp_file.name).exists():
+            Path(temp_file.name).unlink()
 
 
 def load_gedcom_robust(file_path, verbose=False):
