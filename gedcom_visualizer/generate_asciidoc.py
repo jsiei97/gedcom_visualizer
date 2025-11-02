@@ -57,9 +57,9 @@ def get_family_info(gedcom_parser, individual):
         individual: IndividualElement object
 
     Returns:
-        Dictionary with parents, spouses, and children
+        Dictionary with parents, spouses, children, and siblings
     """
-    result = {"parents": [], "spouses": [], "children": []}
+    result = {"parents": [], "spouses": [], "children": [], "siblings": []}
 
     # Get parents
     parents = gedcom_parser.get_parents(individual)
@@ -70,6 +70,24 @@ def get_family_info(gedcom_parser, individual):
             result["parents"].append(("Mother", parent))
         else:
             result["parents"].append(("Parent", parent))
+
+    # Get siblings - find other children of the same parents
+    individual_pointer = individual.get_pointer()
+    element_dict = gedcom_parser.get_element_dictionary()
+
+    # Get all families where parents are spouses to find siblings
+    for relation, parent_individual in result["parents"]:
+        parent_families = gedcom_parser.get_families(parent_individual)
+        for family in parent_families:
+            family_elements = family.get_child_elements()
+            for element in family_elements:
+                if element.get_tag() == "CHIL":
+                    sibling_pointer = element.get_value()
+                    # Skip the individual themselves
+                    if sibling_pointer != individual_pointer:
+                        sibling = element_dict.get(sibling_pointer)
+                        if sibling and sibling not in result["siblings"]:
+                            result["siblings"].append(sibling)
 
     # Get families (as spouse)
     families = gedcom_parser.get_families(individual)
@@ -736,7 +754,12 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
     family_info = get_family_info(gedcom_parser, individual)
 
     # Only create Family Information section if there are family members
-    if family_info["parents"] or family_info["spouses"] or family_info["children"]:
+    if (
+        family_info["parents"]
+        or family_info["spouses"]
+        or family_info["children"]
+        or family_info["siblings"]
+    ):
         lines.append("=== Family Relationships")
         lines.append("")
 
@@ -755,6 +778,33 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
                 parent_death = parent.get_death_data()
                 if parent_death and parent_death[0]:
                     lines.append(f"** Died: {parent_death[0]}")
+            lines.append("")
+
+        if family_info["siblings"]:
+            lines.append("==== Brothers and Sisters")
+            lines.append("")
+            for sibling in family_info["siblings"]:
+                sibling_name = format_name_with_maiden_married(sibling)
+                sibling_id = sibling.get_pointer()
+
+                # Determine relationship based on gender
+                gender = sibling.get_gender()
+                if gender == "M":
+                    relation = "Brother"
+                elif gender == "F":
+                    relation = "Sister"
+                else:
+                    relation = "Sibling"
+
+                lines.append(f"* *{relation}:* {sibling_name} ({sibling_id})")
+
+                sibling_birth = sibling.get_birth_data()
+                if sibling_birth and sibling_birth[0]:
+                    lines.append(f"** Born: {sibling_birth[0]}")
+
+                sibling_death = sibling.get_death_data()
+                if sibling_death and sibling_death[0]:
+                    lines.append(f"** Died: {sibling_death[0]}")
             lines.append("")
 
         if family_info["spouses"]:

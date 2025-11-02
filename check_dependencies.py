@@ -58,10 +58,10 @@ def check_graphviz_special():
             print(f"✅ Graphviz: {version}")
             return True
         else:
-            print(f"❌ Graphviz: Command failed")
+            print("❌ Graphviz: Command failed")
             return False
     except FileNotFoundError:
-        print(f"❌ Graphviz: Command not found")
+        print("❌ Graphviz: Command not found")
         return False
 
 
