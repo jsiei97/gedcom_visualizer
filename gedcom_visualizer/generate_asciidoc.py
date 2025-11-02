@@ -632,21 +632,61 @@ def get_comprehensive_biographical_info(gedcom_parser, individual):
     return bio_info
 
 
-def generate_asciidoc(gedcom_parser, individual, output_file=None):
-    """Generate AsciiDoc format genealogy document for an individual.
+def collect_ancestors_recursive(
+    gedcom_parser, individual, max_generations, current_generation=1, visited=None
+):
+    """Recursively collect ancestors up to the specified number of generations.
 
     Args:
         gedcom_parser: Parsed GEDCOM data
-        individual: Individual element to generate document for
-        output_file: Optional output file path (defaults to family_tree.adoc)
-    """
-    # Use enhanced name formatting for document title (prioritizes married names)
-    document_title_name = format_name_with_maiden_married(individual)
-    # For document title, we want just the name without the "(born ...)" part
-    if " (born " in document_title_name:
-        document_title_name = document_title_name.split(" (born ")[0]
+        individual: Individual element to start from
+        max_generations: Maximum number of generations to collect (0 = unlimited)
+        current_generation: Current generation level (1-based)
+        visited: Set of already visited individual IDs to prevent infinite loops
 
-    pointer = individual.get_pointer()
+    Returns:
+        List of tuples: (individual, generation_level)
+    """
+    if visited is None:
+        visited = set()
+
+    result = []
+    individual_id = individual.get_pointer()
+
+    # Avoid infinite loops
+    if individual_id in visited:
+        return result
+
+    visited.add(individual_id)
+    result.append((individual, current_generation))
+
+    # If we've reached the max generations limit, stop (unless max_generations is 0 for unlimited)
+    if max_generations > 0 and current_generation >= max_generations:
+        return result
+
+    # Get parents and recurse
+    family_info = get_family_info(gedcom_parser, individual)
+    for relation, parent in family_info["parents"]:
+        parent_ancestors = collect_ancestors_recursive(
+            gedcom_parser, parent, max_generations, current_generation + 1, visited
+        )
+        result.extend(parent_ancestors)
+
+    return result
+
+
+def generate_individual_content(gedcom_parser, individual, is_main_person=True):
+    """Generate AsciiDoc content for a single individual.
+
+    Args:
+        gedcom_parser: Parsed GEDCOM data
+        individual: Individual element to generate content for
+        is_main_person: Whether this is the main person (affects chapter level)
+
+    Returns:
+        List of content lines for the individual
+    """
+    lines = []
 
     # Use full married name for chapter title, matching the document title approach
     chapter_name = format_name_with_maiden_married(individual)
@@ -654,22 +694,14 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
     if " (born " in chapter_name:
         chapter_name = chapter_name.split(" (born ")[0]
 
-    # Set chapter title using the full name
-    chapter_title = f"== {chapter_name} - Personal Information"
-
-    # Start building the AsciiDoc content
-    lines = []
-    lines.append(f"= {document_title_name}")
-
-    # Add table of contents unless disabled
-    if not getattr(generate_asciidoc, "_no_toc", False):
-        lines.append(":toc:")
-        lines.append(":toc-title: Table of Contents")
-        lines.append(":numbered:")
+    # Set chapter title using the full name - main person uses ==, parents use ==
+    if is_main_person:
+        chapter_title = f"== {chapter_name} - Personal Information"
     else:
-        lines.append(":numbered:")
+        chapter_title = f"== {chapter_name} - Personal Information"
 
-    lines.append("")
+    pointer = individual.get_pointer()
+
     lines.append(chapter_title)
     lines.append("")
     # Use enhanced name formatting that shows maiden/married names
@@ -710,19 +742,26 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
 
         # Check if we should use external PNG or embed DOT content (default)
         if getattr(generate_asciidoc, "_external_png", False):
-            # Generate PNG file (legacy method)
-            if output_file:
-                output_dir = Path(output_file).parent
+            # For parents, we don't generate separate PNG files to avoid complexity
+            # Just show a note that tree is available in main chapter
+            if not is_main_person:
+                lines.append("_See main family tree diagram in the first chapter._")
+                lines.append("")
             else:
-                output_dir = Path.cwd()
+                # Generate PNG file (legacy method) only for main person
+                if hasattr(generate_asciidoc, "_output_dir"):
+                    output_dir = generate_asciidoc._output_dir
+                else:
+                    output_dir = Path.cwd()
 
-            family_tree_image = create_family_tree_diagram(
-                gedcom_parser, individual, output_dir
-            )
-            if family_tree_image:
-                lines.append(
-                    f'image::{family_tree_image.name}[Family Tree, align="center"]'
+                family_tree_image = create_family_tree_diagram(
+                    gedcom_parser, individual, output_dir
                 )
+                if family_tree_image:
+                    lines.append(
+                        f'image::{family_tree_image.name}[Family Tree, align="center"]'
+                    )
+                lines.append("")
         else:
             # Embed DOT content directly in AsciiDoc (default)
             dot_content = create_family_tree_dot_content(gedcom_parser, individual)
@@ -961,8 +1000,63 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
                 lines.append(f"* *Record ID:* {bio_info['metadata']['record_id']}")
             lines.append("")
 
+    return lines
+
+
+def generate_asciidoc(gedcom_parser, individual, output_file=None, generations=4):
+    """Generate AsciiDoc format genealogy document for an individual.
+
+    Args:
+        gedcom_parser: Parsed GEDCOM data
+        individual: Individual element to generate document for
+        output_file: Optional output file path (defaults to family_tree.adoc)
+        generations: Number of generations to include (1=main only, 2=+parents, etc.)
+    """
+    # Use enhanced name formatting for document title (prioritizes married names)
+    document_title_name = format_name_with_maiden_married(individual)
+    # For document title, we want just the name without the "(born ...)" part
+    if " (born " in document_title_name:
+        document_title_name = document_title_name.split(" (born ")[0]
+
+    pointer = individual.get_pointer()
+
+    # Store output directory for helper function if using external PNG
+    if output_file:
+        generate_asciidoc._output_dir = Path(output_file).parent
+    else:
+        generate_asciidoc._output_dir = Path.cwd()
+
+    # Start building the AsciiDoc content
+    lines = []
+    lines.append(f"= {document_title_name}")
+
+    # Add table of contents unless disabled
+    if not getattr(generate_asciidoc, "_no_toc", False):
+        lines.append(":toc:")
+        lines.append(":toc-title: Table of Contents")
+        lines.append(":numbered:")
+    else:
+        lines.append(":numbered:")
+
+    lines.append("")
+
+    # Collect all ancestors up to the specified number of generations
+    all_ancestors = collect_ancestors_recursive(gedcom_parser, individual, generations)
+
+    # Generate content for each person, starting with the main person
+    for i, (person, generation_level) in enumerate(all_ancestors):
+        if i > 0:  # Add spacing between chapters (except before the first one)
+            lines.append("")
+
+        is_main_person = generation_level == 1
+        person_content = generate_individual_content(
+            gedcom_parser, person, is_main_person=is_main_person
+        )
+        lines.extend(person_content)
+
     # Add a footer - made less prominent
-    lines.append("=== Document Information")
+    lines.append("")
+    lines.append("== Document Information")
     lines.append("")
     lines.append(
         "This document was automatically generated from a GEDCOM file "
@@ -1021,6 +1115,13 @@ def main():
         action="store_true",
         help="Generate external PNG files instead of embedding DOT content (legacy mode)",
     )
+    parser.add_argument(
+        "--generations",
+        type=int,
+        default=4,
+        help="Number of generations to include (1=main person only, 2=+parents, 3=+grandparents, 4=+great-grandparents, etc. Default: 4, 0=all available)",
+        metavar="N",
+    )
 
     args = parser.parse_args()
 
@@ -1052,7 +1153,7 @@ def main():
         generate_asciidoc._no_tree = args.no_tree
         generate_asciidoc._no_toc = args.no_toc
         generate_asciidoc._external_png = args.external_png
-        generate_asciidoc(gedcom_parser, individual, args.output)
+        generate_asciidoc(gedcom_parser, individual, args.output, args.generations)
     except (OSError, IOError) as e:
         print(f"Error generating AsciiDoc: {e}", file=sys.stderr)
         sys.exit(1)
