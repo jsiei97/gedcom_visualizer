@@ -1,7 +1,7 @@
 # GEDCOM Visualizer
 
 A collection of Python scripts for parsing and visualizing GEDCOM genealogy files.
-This project provides tools to extract, format, 
+This project provides tools to extract, format,
 and present genealogical data in human-readable formats with A4 paper formatting for European use.
 
 ## Features
@@ -79,7 +79,7 @@ distrobox enter gedcom-viz
 
 Your home directory is automatically mounted inside the DistroBox container,
 so you can access your GEDCOM files directly.
-Place your GEDCOM files anywhere in your home directory and access them 
+Place your GEDCOM files anywhere in your home directory and access them
 from within the container using the same paths.
 
 For example, if your GEDCOM file is at `~/Documents/family.ged` on your host system,
@@ -180,10 +180,33 @@ gedcom_visualizer/
 ├── Dockerfile                 # Container definition
 ├── build-container.sh         # Script to build the container
 ├── run-distrobox.sh          # Script to set up DistroBox
+├── cleanup.sh                # Script to clean temporary files
 ├── requirements.txt           # Python dependencies
 ├── setup.py                   # Package installation
 └── README.md                  # This file
 ```
+
+## Cleanup
+
+Use the cleanup script to remove temporary files generated during development:
+
+```bash
+# Interactive cleanup (asks for confirmation)
+./cleanup.sh
+
+# Force cleanup (removes files without asking)
+./cleanup.sh --force
+
+# Or use the short form
+./cleanup.sh -f
+```
+
+The cleanup script removes:
+- `*.adoc` - AsciiDoc source files
+- `*.pdf` - Generated PDF files
+- `*.dot` - Graphviz DOT files
+- `*.png` - Family tree images
+- LaTeX temporary files (`*.aux`, `*.log`, etc.)
 
 ## Command Line Options
 

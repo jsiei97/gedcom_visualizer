@@ -48,6 +48,15 @@ _build/
 .DS_Store
 Thumbs.db
 
-# Generated files
+# Generated files (use cleanup.sh to remove)
 *.pdf
 *.adoc
+*.dot
+*.png
+*_family_tree.*
+*.aux
+*.toc
+*.out
+*.fdb_latexmk
+*.fls
+*.synctex.gz
