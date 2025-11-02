@@ -177,12 +177,14 @@ def create_family_tree_dot_content(gedcom_parser, individual):
             )
         dot_content.append("")
 
-    # Add spouse (to the side)
+    # Add spouse (to the side, same rank as main person)
     if family_info["spouses"]:
-        dot_content.append("    // Spouse(s)")
+        dot_content.append("    // Spouse(s) - positioned at same level as main person")
+        spouse_ids = []
         for i, spouse in enumerate(family_info["spouses"]):
             spouse_name = format_name(spouse)
             spouse_id = spouse.get_pointer()
+            spouse_ids.append(spouse_id)
             spouse_birth = spouse.get_birth_data()
             birth_year = ""
             if spouse_birth and spouse_birth[0]:
@@ -191,7 +193,7 @@ def create_family_tree_dot_content(gedcom_parser, individual):
                     if date_str[-4:].isdigit():
                         birth_year = f"\\nb. {date_str[-4:]}"
                     elif len(date_str) >= 4 and date_str[:4].isdigit():
-                        birth_year = f"\\nb. {date_str[:4]}"
+                        birth_year = f"\\nb. {date_str[:4:]}"
 
             dot_content.append(
                 f'    "{spouse_id}" [label="{spouse_name}\\n({spouse_id}){birth_year}", fillcolor="#FFB6C1"];'
@@ -199,8 +201,12 @@ def create_family_tree_dot_content(gedcom_parser, individual):
             dot_content.append(
                 f'    "{main_id}" -> "{spouse_id}" [label="married", style=dashed, dir=none];'
             )
-        dot_content.append("")
 
+        # Force main person and spouse(s) to be at the same rank (horizontal level)
+        if spouse_ids:
+            spouse_list = '"; "'.join(spouse_ids)
+            dot_content.append(f'    {{ rank=same; "{main_id}"; "{spouse_list}"; }}')
+        dot_content.append("")
     # Add children (below)
     if family_info["children"]:
         dot_content.append("    // Children")
@@ -289,12 +295,14 @@ def create_family_tree_diagram(gedcom_parser, individual, output_dir):
             )
         dot_content.append("")
 
-    # Add spouse (to the side)
+    # Add spouse (to the side, same rank as main person)
     if family_info["spouses"]:
-        dot_content.append("    // Spouse(s)")
+        dot_content.append("    // Spouse(s) - positioned at same level as main person")
+        spouse_ids = []
         for i, spouse in enumerate(family_info["spouses"]):
             spouse_name = format_name(spouse)
             spouse_id = spouse.get_pointer()
+            spouse_ids.append(spouse_id)
             spouse_birth = spouse.get_birth_data()
             birth_year = ""
             if spouse_birth and spouse_birth[0]:
@@ -311,6 +319,11 @@ def create_family_tree_diagram(gedcom_parser, individual, output_dir):
             dot_content.append(
                 f'    "{main_id}" -> "{spouse_id}" [label="married", style=dashed, dir=none];'
             )
+
+        # Force main person and spouse(s) to be at the same rank (horizontal level)
+        if spouse_ids:
+            spouse_list = '"; "'.join(spouse_ids)
+            dot_content.append(f'    {{ rank=same; "{main_id}"; "{spouse_list}"; }}')
         dot_content.append("")
 
     # Add children (below)
@@ -380,6 +393,143 @@ def create_family_tree_diagram(gedcom_parser, individual, output_dir):
         return None
 
 
+def get_comprehensive_biographical_info(gedcom_parser, individual):
+    """Extract comprehensive biographical information from GEDCOM.
+
+    Args:
+        gedcom_parser: Parsed GEDCOM data
+        individual: Individual element
+
+    Returns:
+        Dictionary with comprehensive biographical information
+    """
+    bio_info = {
+        "life_events": [],
+        "residences": [],
+        "contact": {},
+        "sources": [],
+        "metadata": {},
+    }
+
+    element_dict = gedcom_parser.get_element_dictionary()
+    child_elements = individual.get_child_elements()
+
+    # Extract comprehensive life events
+    for element in child_elements:
+        tag = element.get_tag()
+
+        # Major life events
+        if tag in [
+            "BIRT",
+            "DEAT",
+            "BURI",
+            "MARR",
+            "DIV",
+            "OCCU",
+            "EDUC",
+            "RELI",
+            "NATU",
+            "EMIG",
+            "IMMI",
+        ]:
+            event = {"type": tag, "date": None, "place": None, "details": {}}
+
+            # Extract details from sub-elements
+            for sub_element in element.get_child_elements():
+                sub_tag = sub_element.get_tag()
+                sub_value = sub_element.get_value()
+
+                if sub_tag == "DATE":
+                    event["date"] = sub_value
+                elif sub_tag == "PLAC":
+                    event["place"] = sub_value
+                else:
+                    event["details"][sub_tag] = sub_value
+
+            bio_info["life_events"].append(event)
+
+        # Residence information (separate from life events for better organization)
+        elif tag == "RESI":
+            residence = {"date": None, "address": None, "place": None, "contact": {}}
+
+            for sub_element in element.get_child_elements():
+                sub_tag = sub_element.get_tag()
+                sub_value = sub_element.get_value()
+
+                if sub_tag == "DATE":
+                    residence["date"] = sub_value
+                elif sub_tag == "ADDR":
+                    residence["address"] = sub_value
+                elif sub_tag == "PLAC":
+                    residence["place"] = sub_value
+                elif sub_tag == "EMAIL":
+                    # Fix double @ symbols that might be used for escaping
+                    email = sub_value.replace("@@", "@")
+                    residence["contact"]["email"] = email
+                    bio_info["contact"]["email"] = email  # Also store in main contact
+                elif sub_tag == "PHON":
+                    residence["contact"]["phone"] = sub_value
+                    bio_info["contact"]["phone"] = sub_value
+
+            # Only add if there's meaningful residence data
+            if (
+                residence["date"]
+                or residence["address"]
+                or residence["place"]
+                or residence["contact"]
+            ):
+                bio_info["residences"].append(residence)
+
+        # Source information
+        elif tag == "SOUR":
+            source_id = element.get_value()
+            source_info = {
+                "id": source_id,
+                "title": None,
+                "author": None,
+                "quality": None,
+                "event": None,
+                "notes": [],
+                "data_text": None,
+            }
+
+            # Get source details from the element
+            for sub_element in element.get_child_elements():
+                if sub_element.get_tag() == "NOTE":
+                    source_info["notes"].append(sub_element.get_value())
+                elif sub_element.get_tag() == "QUAY":
+                    source_info["quality"] = sub_element.get_value()
+                elif sub_element.get_tag() == "EVEN":
+                    source_info["event"] = sub_element.get_value()
+                elif sub_element.get_tag() == "DATA":
+                    for data_sub in sub_element.get_child_elements():
+                        if data_sub.get_tag() == "TEXT":
+                            source_info["data_text"] = data_sub.get_value()
+
+            # Get additional source record information
+            source_element = element_dict.get(source_id)
+            if source_element:
+                for child in source_element.get_child_elements():
+                    if child.get_tag() == "AUTH":
+                        source_info["author"] = child.get_value()
+                    elif child.get_tag() == "TITL":
+                        source_info["title"] = child.get_value()
+                    elif child.get_tag() == "TEXT":
+                        source_info["description"] = child.get_value()
+
+            bio_info["sources"].append(source_info)
+
+        # Metadata
+        elif tag == "_UPD":
+            bio_info["metadata"]["last_updated"] = element.get_value()
+        elif tag == "RIN":
+            bio_info["metadata"]["record_id"] = element.get_value()
+        elif tag == "_UID":
+            bio_info["metadata"]["unique_id"] = element.get_value()
+
+    return bio_info
+
+
 def generate_asciidoc(gedcom_parser, individual, output_file=None):
     """Generate AsciiDoc format genealogy document for an individual.
 
@@ -437,7 +587,7 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
 
     # Generate family tree diagram (if not disabled)
     if not getattr(generate_asciidoc, "_no_tree", False):
-        lines.append("== Family Tree Diagram")
+        lines.append("=== Family Tree Diagram")
         lines.append("")
 
         # Check if we should use external PNG or embed DOT content (default)
@@ -470,11 +620,11 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
 
     # Only create Family Information section if there are family members
     if family_info["parents"] or family_info["spouses"] or family_info["children"]:
-        lines.append("== Family Information")
+        lines.append("=== Family Relationships")
         lines.append("")
 
         if family_info["parents"]:
-            lines.append("=== Parents")
+            lines.append("==== Parents")
             lines.append("")
             for relation, parent in family_info["parents"]:
                 parent_name = format_name(parent)
@@ -491,7 +641,7 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
             lines.append("")
 
         if family_info["spouses"]:
-            lines.append("=== Spouse(s)")
+            lines.append("==== Spouse(s)")
             lines.append("")
             for spouse in family_info["spouses"]:
                 spouse_name = format_name(spouse)
@@ -508,7 +658,7 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
             lines.append("")
 
         if family_info["children"]:
-            lines.append("=== Children")
+            lines.append("==== Children")
             lines.append("")
             for child in family_info["children"]:
                 child_name = format_name(child)
@@ -518,6 +668,146 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
                 child_birth = child.get_birth_data()
                 if child_birth and child_birth[0]:
                     lines.append(f"** Born: {child_birth[0]}")
+            lines.append("")
+
+    # Add comprehensive biographical information section
+    bio_info = get_comprehensive_biographical_info(gedcom_parser, individual)
+
+    # Check if we have any additional biographical information to show
+    has_bio_info = (
+        bio_info["life_events"]
+        or bio_info["residences"]
+        or bio_info["contact"]
+        or bio_info["sources"]
+        or bio_info["metadata"]
+    )
+
+    if has_bio_info:
+        lines.append("=== Additional Information")
+        lines.append("")
+
+        # Life events (beyond basic birth/death already shown)
+        significant_events = [
+            event for event in bio_info["life_events"] if event["type"] not in ["BIRT"]
+        ]  # Birth already shown in Personal Information
+
+        if significant_events:
+            lines.append("==== Life Events")
+            lines.append("")
+
+            event_names = {
+                "DEAT": "Death",
+                "BURI": "Burial",
+                "MARR": "Marriage",
+                "DIV": "Divorce",
+                "OCCU": "Occupation",
+                "EDUC": "Education",
+                "RELI": "Religion",
+                "NATU": "Naturalization",
+                "EMIG": "Emigration",
+                "IMMI": "Immigration",
+            }
+
+            for event in significant_events:
+                event_name = event_names.get(event["type"], event["type"])
+                lines.append(f"*{event_name}:*")
+
+                if event["date"]:
+                    lines.append(f"** Date: {event['date']}")
+                if event["place"]:
+                    lines.append(f"** Place: {event['place']}")
+
+                # Add any other details
+                for detail_key, detail_value in event["details"].items():
+                    if detail_key not in ["DATE", "PLAC"] and detail_value:
+                        lines.append(f"** {detail_key}: {detail_value}")
+
+                lines.append("")
+
+        # Residence history
+        if bio_info["residences"]:
+            lines.append("==== Residence History")
+            lines.append("")
+
+            for i, residence in enumerate(bio_info["residences"], 1):
+                if len(bio_info["residences"]) > 1:
+                    lines.append(f"*Residence {i}:*")
+                else:
+                    lines.append("*Residence:*")
+
+                if residence["date"]:
+                    lines.append(f"** Period: {residence['date']}")
+                if residence["address"]:
+                    lines.append(f"** Address: {residence['address']}")
+                if residence["place"]:
+                    lines.append(f"** Place: {residence['place']}")
+
+                # Contact info for this residence
+                if residence["contact"]:
+                    if residence["contact"].get("email"):
+                        lines.append(f"** Email: {residence['contact']['email']}")
+                    if residence["contact"].get("phone"):
+                        lines.append(f"** Phone: {residence['contact']['phone']}")
+
+                lines.append("")
+
+        # Contact information (if not already covered in residences)
+        standalone_contact = {
+            k: v
+            for k, v in bio_info["contact"].items()
+            if not any(r["contact"].get(k) for r in bio_info["residences"])
+        }
+
+        if standalone_contact:
+            lines.append("==== Contact Information")
+            lines.append("")
+            for contact_type, contact_value in standalone_contact.items():
+                if contact_type == "email":
+                    lines.append(f"* *Email:* {contact_value}")
+                elif contact_type == "phone":
+                    lines.append(f"* *Phone:* {contact_value}")
+            lines.append("")
+
+        # Source information
+        if bio_info["sources"]:
+            lines.append("==== Sources and References")
+            lines.append("")
+            for i, source in enumerate(bio_info["sources"], 1):
+                if source.get("title") or source.get("author"):
+                    lines.append(f"*Source {i}:*")
+                    if source.get("title"):
+                        lines.append(f"** Title: {source['title']}")
+                    if source.get("author"):
+                        lines.append(f"** Author: {source['author']}")
+                    if source.get("quality"):
+                        quality_desc = {
+                            "0": "Unreliable evidence",
+                            "1": "Questionable reliability",
+                            "2": "Secondary evidence",
+                            "3": "Direct and primary evidence",
+                        }
+                        quality_text = quality_desc.get(
+                            source["quality"], f"Quality level {source['quality']}"
+                        )
+                        lines.append(f"** Quality: {quality_text}")
+                    if source.get("event"):
+                        lines.append(f"** Event Type: {source['event']}")
+                    if source.get("data_text"):
+                        lines.append(f"** Details: {source['data_text']}")
+                    if source["notes"]:
+                        lines.append(f"** Notes: {', '.join(source['notes'])}")
+                    lines.append("")
+
+        # Metadata
+        if bio_info["metadata"]:
+            lines.append("==== Record Information")
+            lines.append("")
+            if bio_info["metadata"].get("last_updated"):
+                lines.append(
+                    f"* *Last Updated:* {bio_info['metadata']['last_updated']}"
+                )
+            if bio_info["metadata"].get("record_id"):
+                lines.append(f"* *Record ID:* {bio_info['metadata']['record_id']}")
             lines.append("")
 
     # Add a footer - made less prominent

@@ -119,6 +119,20 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
             rst_lines.append("~" * len(subsection))
             rst_lines.append("")
 
+        # Convert sub-subsection headers (==== Sub-subsection)
+        elif line.startswith("==== "):
+            subsubsection = line[5:].strip()
+            rst_lines.append(subsubsection)
+            rst_lines.append("^" * len(subsubsection))
+            rst_lines.append("")
+
+        # Convert paragraph headers (===== Paragraph)
+        elif line.startswith("===== "):
+            paragraph = line[6:].strip()
+            rst_lines.append(paragraph)
+            rst_lines.append('"' * len(paragraph))
+            rst_lines.append("")
+
         # Convert list items (*)
         elif line.startswith("* "):
             # Convert list markers and any bold text within
@@ -221,9 +235,14 @@ def build_pdf(sphinx_source_dir, output_dir):
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        result = subprocess.run(cmd, capture_output=True, text=False, check=False)
         if result.returncode != 0:
-            print(f"Error building LaTeX: {result.stderr}", file=sys.stderr)
+            # Try to decode stderr safely
+            try:
+                stderr_text = result.stderr.decode("utf-8", errors="replace")
+            except (UnicodeDecodeError, AttributeError):
+                stderr_text = str(result.stderr)
+            print(f"Error building LaTeX: {stderr_text}", file=sys.stderr)
             return None
     except (OSError, subprocess.SubprocessError) as e:
         print(f"Error running sphinx-build: {e}", file=sys.stderr)
@@ -240,7 +259,7 @@ def build_pdf(sphinx_source_dir, output_dir):
             result = subprocess.run(
                 ["pdflatex", "-interaction=nonstopmode", "document.tex"],
                 capture_output=True,
-                text=True,
+                text=False,  # Handle binary output to avoid encoding issues
                 check=False,
             )
 
