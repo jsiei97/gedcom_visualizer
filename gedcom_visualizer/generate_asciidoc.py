@@ -675,17 +675,42 @@ def collect_ancestors_recursive(
     return result
 
 
-def generate_individual_content(gedcom_parser, individual, is_main_person=True):
+def generate_cross_reference_link(person_id, person_name, chapter_individuals):
+    """Generate a cross-reference link if the person has a chapter, otherwise just show the ID.
+
+    Args:
+        person_id: The GEDCOM ID of the person (e.g., @I500005@)
+        person_name: The formatted name of the person
+        chapter_individuals: Set of individual IDs that have their own chapters
+
+    Returns:
+        String with either a clickable link or plain text
+    """
+    if person_id in chapter_individuals:
+        # Create a clickable cross-reference link with clean anchor ID
+        clean_id = person_id.replace("@", "")
+        return f"<<{clean_id},{person_name}>> ({person_id})"
+    else:
+        # Just show the ID as plain text
+        return f"{person_name} ({person_id})"
+
+
+def generate_individual_content(
+    gedcom_parser, individual, is_main_person=True, chapter_individuals=None
+):
     """Generate AsciiDoc content for a single individual.
 
     Args:
         gedcom_parser: Parsed GEDCOM data
         individual: Individual element to generate content for
         is_main_person: Whether this is the main person (affects chapter level)
+        chapter_individuals: Set of individual IDs that have their own chapters
 
     Returns:
         List of content lines for the individual
     """
+    if chapter_individuals is None:
+        chapter_individuals = set()
     lines = []
 
     # Use full married name for chapter title, matching the document title approach
@@ -702,7 +727,10 @@ def generate_individual_content(gedcom_parser, individual, is_main_person=True):
 
     pointer = individual.get_pointer()
 
-    lines.append(chapter_title)
+    # Add anchor label for cross-referencing (remove @ symbols for valid anchors)
+    clean_id = pointer.replace("@", "")
+    # Use proper anchor syntax at the end of the chapter title
+    lines.append(f"{chapter_title} [[{clean_id}]]")
     lines.append("")
     # Use enhanced name formatting that shows maiden/married names
     enhanced_name = format_name_with_maiden_married(individual)
@@ -791,7 +819,10 @@ def generate_individual_content(gedcom_parser, individual, is_main_person=True):
             for relation, parent in family_info["parents"]:
                 parent_name = format_name_with_maiden_married(parent)
                 parent_id = parent.get_pointer()
-                lines.append(f"* *{relation}:* {parent_name} ({parent_id})")
+                parent_link = generate_cross_reference_link(
+                    parent_id, parent_name, chapter_individuals
+                )
+                lines.append(f"* *{relation}:* {parent_link}")
 
                 parent_birth = parent.get_birth_data()
                 if parent_birth and parent_birth[0]:
@@ -818,7 +849,10 @@ def generate_individual_content(gedcom_parser, individual, is_main_person=True):
                 else:
                     relation = "Sibling"
 
-                lines.append(f"* *{relation}:* {sibling_name} ({sibling_id})")
+                sibling_link = generate_cross_reference_link(
+                    sibling_id, sibling_name, chapter_individuals
+                )
+                lines.append(f"* *{relation}:* {sibling_link}")
 
                 sibling_birth = sibling.get_birth_data()
                 if sibling_birth and sibling_birth[0]:
@@ -835,7 +869,10 @@ def generate_individual_content(gedcom_parser, individual, is_main_person=True):
             for spouse in family_info["spouses"]:
                 spouse_name = format_name_with_maiden_married(spouse)
                 spouse_id = spouse.get_pointer()
-                lines.append(f"* *{spouse_name}* ({spouse_id})")
+                spouse_link = generate_cross_reference_link(
+                    spouse_id, spouse_name, chapter_individuals
+                )
+                lines.append(f"* {spouse_link}")
 
                 spouse_birth = spouse.get_birth_data()
                 if spouse_birth and spouse_birth[0]:
@@ -852,7 +889,10 @@ def generate_individual_content(gedcom_parser, individual, is_main_person=True):
             for child in family_info["children"]:
                 child_name = format_name_with_maiden_married(child)
                 child_id = child.get_pointer()
-                lines.append(f"* *{child_name}* ({child_id})")
+                child_link = generate_cross_reference_link(
+                    child_id, child_name, chapter_individuals
+                )
+                lines.append(f"* {child_link}")
 
                 child_birth = child.get_birth_data()
                 if child_birth and child_birth[0]:
@@ -1043,6 +1083,9 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None, generations=4
     # Collect all ancestors up to the specified number of generations
     all_ancestors = collect_ancestors_recursive(gedcom_parser, individual, generations)
 
+    # Create a set of all individual IDs that will have chapters for cross-referencing
+    chapter_individuals = {person.get_pointer() for person, _ in all_ancestors}
+
     # Generate content for each person, starting with the main person
     for i, (person, generation_level) in enumerate(all_ancestors):
         if i > 0:  # Add spacing between chapters (except before the first one)
@@ -1050,7 +1093,10 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None, generations=4
 
         is_main_person = generation_level == 1
         person_content = generate_individual_content(
-            gedcom_parser, person, is_main_person=is_main_person
+            gedcom_parser,
+            person,
+            is_main_person=is_main_person,
+            chapter_individuals=chapter_individuals,
         )
         lines.extend(person_content)
 

@@ -34,7 +34,10 @@ author = 'GEDCOM Visualizer'
 release = '1.0'
 
 # General configuration
-extensions = ['sphinx.ext.graphviz']
+extensions = ['sphinx.ext.graphviz', 'sphinx.ext.autosectionlabel']
+
+# Autosectionlabel settings
+autosectionlabel_prefix_document = True
 
 # The suffix of source filenames
 source_suffix = {{
@@ -60,6 +63,16 @@ latex_elements = {{
 \\geometry{{margin=2cm}}
 \\setcounter{{tocdepth}}{{3}}
 \\setcounter{{secnumdepth}}{{3}}
+\\usepackage{{hyperref}}
+\\hypersetup{{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    pdftitle={{{title}}},
+    pdfauthor={{GEDCOM Visualizer}},
+    bookmarks=true,
+    bookmarksnumbered=true
+}}
     ''',
     'figure_align': 'htbp',
     'fncychap': '',
@@ -105,12 +118,26 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
             rst_lines.append("=" * len(title))
             rst_lines.append("")
 
-        # Convert section headers (== Section)
+        # Convert section headers (== Section) - handle anchors
         elif line.startswith("== "):
-            section = line[3:].strip()
-            rst_lines.append(section)
-            rst_lines.append("-" * len(section))
-            rst_lines.append("")
+            section_with_anchor = line[3:].strip()
+
+            # Check if there's an anchor at the end: "Title [[anchor]]"
+            anchor_match = re.search(r"(.*?)\s*\[\[([^\]]+)\]\]$", section_with_anchor)
+            if anchor_match:
+                section = anchor_match.group(1).strip()
+                anchor = anchor_match.group(2).strip()
+                # Add RST label and section - use format that works with :ref:
+                rst_lines.append(f".. _{anchor}:")
+                rst_lines.append("")
+                rst_lines.append(section)
+                rst_lines.append("-" * len(section))
+                rst_lines.append("")
+            else:
+                section = section_with_anchor
+                rst_lines.append(section)
+                rst_lines.append("-" * len(section))
+                rst_lines.append("")
 
         # Convert subsection headers (=== Subsection)
         elif line.startswith("=== "):
@@ -138,6 +165,11 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
             # Convert list markers and any bold text within
             converted = line.replace("* ", "- ", 1)
             converted = re.sub(r"\*([^\*]+?)\*", r"**\1**", converted)
+            # Convert cross-references in list items
+            if "<<" in converted:
+                converted = re.sub(
+                    r"<<([^,>]+),([^>]+)>>", r":ref:`\2 <\1>`", converted
+                )
             rst_lines.append(converted)
 
         # Convert nested list items (**)
@@ -145,6 +177,11 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
             # Convert list markers and any bold text within
             converted = line.replace("** ", "  - ", 1)
             converted = re.sub(r"\*([^\*]+?)\*", r"**\1**", converted)
+            # Convert cross-references in nested list items
+            if "<<" in converted:
+                converted = re.sub(
+                    r"<<([^,>]+),([^>]+)>>", r":ref:`\2 <\1>`", converted
+                )
             rst_lines.append(converted)
 
         # Convert AsciiDoc graphviz block to RST
@@ -194,15 +231,18 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
             else:
                 rst_lines.append(line)
 
-        # Convert bold text (*text* to **text**) in other lines
-        elif "*" in line:
-            # Match and convert AsciiDoc bold syntax *word* to RST **word**
-            converted = re.sub(r"\*([^\*]+?)\*", r"**\1**", line)
-            rst_lines.append(converted)
-
-        # Keep other lines as is
+        # Handle other lines - convert bold text and cross-references
         else:
-            rst_lines.append(line)
+            converted = line
+            # Convert AsciiDoc bold syntax *word* to RST **word**
+            if "*" in converted:
+                converted = re.sub(r"\*([^\*]+?)\*", r"**\1**", converted)
+            # Convert AsciiDoc cross-references <<anchor,text>> to RST :ref:`text <anchor>`
+            if "<<" in converted:
+                converted = re.sub(
+                    r"<<([^,>]+),([^>]+)>>", r":ref:`\2 <\1>`", converted
+                )
+            rst_lines.append(converted)
 
         i += 1
 
@@ -229,7 +269,7 @@ def build_pdf(sphinx_source_dir, output_dir):
         "sphinx-build",
         "-b",
         "latex",
-        "-q",  # Quiet mode
+        "-v",  # Verbose mode to see warnings
         sphinx_source_dir,
         latex_dir,
     ]
