@@ -78,29 +78,31 @@ def get_family_info(gedcom_parser, individual):
     # Get families (as spouse)
     families = gedcom_parser.get_families(individual)
     individual_pointer = individual.get_pointer()
+    element_dict = gedcom_parser.get_element_dictionary()
     
     for family in families:
-        # Get family members (includes individual, spouse, and children)
-        members = gedcom_parser.get_family_members(family)
+        # Get family structure elements (HUSB, WIFE, CHIL tags)
+        family_elements = family.get_child_elements()
         
-        for member in members:
-            member_pointer = member.get_pointer()
+        for element in family_elements:
+            tag = element.get_tag()
+            pointer = element.get_value()
             
             # Skip the individual themselves
-            if member_pointer == individual_pointer:
+            if pointer == individual_pointer:
                 continue
             
-            # Check if this is a spouse (adult) or child
-            # A simple heuristic: if they have the same family as spouse families, they're a spouse
-            member_families = gedcom_parser.get_families(member)
-            is_spouse = family in member_families
+            # Add spouses (HUSB or WIFE tags)
+            if tag in ('HUSB', 'WIFE'):
+                spouse = element_dict.get(pointer)
+                if spouse and spouse not in result['spouses']:
+                    result['spouses'].append(spouse)
             
-            if is_spouse:
-                if member not in result['spouses']:
-                    result['spouses'].append(member)
-            else:
-                if member not in result['children']:
-                    result['children'].append(member)
+            # Add children (CHIL tag)
+            elif tag == 'CHIL':
+                child = element_dict.get(pointer)
+                if child and child not in result['children']:
+                    result['children'].append(child)
     
     return result
 

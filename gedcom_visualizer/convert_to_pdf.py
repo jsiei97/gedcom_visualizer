@@ -111,10 +111,11 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
             rst_lines.append('~' * len(subsection))
             rst_lines.append('')
         
-        # Convert bold text (*text*)
+        # Convert bold text (*text* to **text**)
         elif '*' in line and not line.startswith('*'):
-            # Simple conversion of *text* to **text**
-            converted = line.replace('*', '**')
+            # Match and convert AsciiDoc bold syntax *word* to RST **word**
+            import re
+            converted = re.sub(r'\*([^\*]+?)\*', r'**\1**', line)
             rst_lines.append(converted)
         
         # Convert list items (*)
