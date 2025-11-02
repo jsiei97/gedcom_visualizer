@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Script 3: Convert AsciiDoc to PDF using Sphinx.
 
-This script sets up a Sphinx project and converts an AsciiDoc document to PDF format.
+This script sets up a Sphinx project and converts an AsciiDoc document to
+PDF format.
 """
 
 import sys
@@ -10,7 +11,6 @@ import os
 import re
 import shutil
 import subprocess
-from pathlib import Path
 import tempfile
 
 
@@ -65,7 +65,7 @@ latex_documents = [
 """
 
     conf_path = os.path.join(source_dir, "conf.py")
-    with open(conf_path, "w") as f:
+    with open(conf_path, "w", encoding="utf-8") as f:
         f.write(conf_content)
 
 
@@ -77,7 +77,7 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
         rst_file: Path to output RST file
     """
     # Read AsciiDoc content
-    with open(asciidoc_file, "r") as f:
+    with open(asciidoc_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
     rst_lines = []
@@ -139,7 +139,7 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
         i += 1
 
     # Write RST content
-    with open(rst_file, "w") as f:
+    with open(rst_file, "w", encoding="utf-8") as f:
         f.write("\n".join(rst_lines))
 
 
@@ -167,11 +167,11 @@ def build_pdf(sphinx_source_dir, output_dir):
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode != 0:
             print(f"Error building LaTeX: {result.stderr}", file=sys.stderr)
             return None
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         print(f"Error running sphinx-build: {e}", file=sys.stderr)
         return None
 
@@ -187,6 +187,7 @@ def build_pdf(sphinx_source_dir, output_dir):
                 ["pdflatex", "-interaction=nonstopmode", "document.tex"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
 
         os.chdir(original_dir)
@@ -200,11 +201,12 @@ def build_pdf(sphinx_source_dir, output_dir):
 
     except FileNotFoundError:
         print(
-            "Error: pdflatex not found. Please install texlive or a similar LaTeX distribution.",
+            "Error: pdflatex not found. Please install texlive or a "
+            "similar LaTeX distribution.",
             file=sys.stderr,
         )
         return None
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         print(f"Error running pdflatex: {e}", file=sys.stderr)
         return None
 
@@ -224,7 +226,7 @@ def convert_asciidoc_to_pdf(asciidoc_file, output_file=None, title=None):
     with tempfile.TemporaryDirectory() as temp_dir:
         # Extract title from AsciiDoc if not provided
         if not title:
-            with open(asciidoc_file, "r") as f:
+            with open(asciidoc_file, "r", encoding="utf-8") as f:
                 for line in f:
                     if line.startswith("= "):
                         title = line[2:].strip()

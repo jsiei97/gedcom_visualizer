@@ -23,8 +23,18 @@
         "python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.linting.enabled": true,
         "python.linting.pylintEnabled": true,
+        "python.linting.flake8Enabled": true,
+        "python.linting.flake8Args": [
+          "--config=.flake8"
+        ],
         "python.formatting.provider": "black",
-        "terminal.integrated.shell.linux": "/bin/bash"
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "[python]": {
+          "editor.rulers": [
+            160
+          ],
+          "editor.wordWrap": "off"
+        }
       }
     }
   },

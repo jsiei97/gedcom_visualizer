@@ -2,17 +2,15 @@
 """Script 2: Generate AsciiDoc document for a given individual ID.
 
 This script creates a human-readable AsciiDoc document with information about
-an individual from a GEDCOM file, including their personal data, family relationships,
-and genealogical context.
+an individual from a GEDCOM file, including their personal data, family
+relationships, and genealogical context.
 """
 
 import sys
 import argparse
 import re
 from pathlib import Path
-from gedcom.parser import Parser
 from gedcom.element.individual import IndividualElement
-from gedcom.element.family import FamilyElement
 from .gedcom_utils import load_gedcom_robust
 
 
@@ -225,7 +223,8 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
     lines.append("== Document Information")
     lines.append("")
     lines.append(
-        "This document was automatically generated from a GEDCOM file using the GEDCOM Visualizer tool."
+        "This document was automatically generated from a GEDCOM file "
+        "using the GEDCOM Visualizer tool."
     )
     lines.append("")
 
@@ -233,7 +232,7 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
     content = "\n".join(lines)
 
     if output_file:
-        with open(output_file, "w") as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"AsciiDoc document written to: {output_file}")
     else:
@@ -255,7 +254,7 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None):
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
-        description="Generate AsciiDoc document for an individual from a GEDCOM file"
+        description="Generate AsciiDoc document for an individual from a " "GEDCOM file"
     )
     parser.add_argument("gedcom_file", help="Path to the GEDCOM file")
     parser.add_argument("individual_id", help="ID of the individual (e.g., @I1@ or I1)")
@@ -277,7 +276,7 @@ def main():
     # Load GEDCOM file
     try:
         gedcom_parser = load_gedcom(args.gedcom_file)
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError) as e:
         print(f"Error parsing GEDCOM file: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -293,7 +292,7 @@ def main():
     # Generate AsciiDoc
     try:
         generate_asciidoc(gedcom_parser, individual, args.output)
-    except Exception as e:
+    except (OSError, IOError) as e:
         print(f"Error generating AsciiDoc: {e}", file=sys.stderr)
         sys.exit(1)
 
