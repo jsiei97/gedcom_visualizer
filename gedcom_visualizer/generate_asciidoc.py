@@ -12,10 +12,11 @@ from pathlib import Path
 from gedcom.parser import Parser
 from gedcom.element.individual import IndividualElement
 from gedcom.element.family import FamilyElement
+from .gedcom_utils import load_gedcom_robust
 
 
 def load_gedcom(file_path):
-    """Load and parse a GEDCOM file.
+    """Load and parse a GEDCOM file with robust error handling.
     
     Args:
         file_path: Path to the GEDCOM file
@@ -23,9 +24,7 @@ def load_gedcom(file_path):
     Returns:
         Parser object with parsed GEDCOM data
     """
-    gedcom_parser = Parser()
-    gedcom_parser.parse_file(file_path)
-    return gedcom_parser
+    return load_gedcom_robust(file_path, verbose=True)
 
 
 def get_individual_by_id(gedcom_parser, individual_id):

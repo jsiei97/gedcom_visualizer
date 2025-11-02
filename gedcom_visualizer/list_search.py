@@ -12,10 +12,11 @@ import argparse
 from pathlib import Path
 from gedcom.parser import Parser
 from gedcom.element.individual import IndividualElement
+from .gedcom_utils import load_gedcom_robust
 
 
 def load_gedcom(file_path):
-    """Load and parse a GEDCOM file.
+    """Load and parse a GEDCOM file with robust error handling.
     
     Args:
         file_path: Path to the GEDCOM file
@@ -23,9 +24,7 @@ def load_gedcom(file_path):
     Returns:
         Parser object with parsed GEDCOM data
     """
-    gedcom_parser = Parser()
-    gedcom_parser.parse_file(file_path)
-    return gedcom_parser
+    return load_gedcom_robust(file_path, verbose=True)
 
 
 def format_individual(individual):
@@ -134,6 +133,11 @@ def main():
         gedcom_parser = load_gedcom(args.gedcom_file)
     except Exception as e:
         print(f"Error parsing GEDCOM file: {e}", file=sys.stderr)
+        print("\nThis might be due to GEDCOM format violations in the file.", file=sys.stderr)
+        print("Common issues include:", file=sys.stderr)
+        print("- Lines that don't start with level numbers", file=sys.stderr)
+        print("- Improper line breaks in text content", file=sys.stderr)
+        print("- Invalid character encoding", file=sys.stderr)
         sys.exit(1)
     
     # List or search
