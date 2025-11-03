@@ -219,6 +219,91 @@ def clean_html_source_text(text):
     return cleaned
 
 
+def format_dates_for_dot(individual):
+    """Format birth and death dates for DOT diagram labels in ISO format.
+
+    Args:
+        individual: Individual element from GEDCOM
+
+    Returns:
+        Formatted date string for DOT label (e.g., "\\nb. 1890-03-29\\nd. 1979-09-12")
+    """
+    dates_info = ""
+
+    # Get birth date
+    birth_data = individual.get_birth_data()
+    if birth_data and birth_data[0]:
+        birth_str = birth_data[0].strip()
+        # Try to convert to ISO format YYYY-MM-DD
+        iso_birth = convert_to_iso_date(birth_str)
+        if iso_birth:
+            dates_info += f"\\nb. {iso_birth}"
+
+    # Get death date
+    death_data = individual.get_death_data()
+    if death_data and death_data[0]:
+        death_str = death_data[0].strip()
+        # Try to convert to ISO format YYYY-MM-DD
+        iso_death = convert_to_iso_date(death_str)
+        if iso_death:
+            dates_info += f"\\nd. {iso_death}"
+
+    return dates_info
+
+
+def convert_to_iso_date(date_str):
+    """Convert various date formats to ISO format YYYY-MM-DD.
+
+    Args:
+        date_str: Date string in various formats
+
+    Returns:
+        ISO formatted date string or None if can't be parsed
+    """
+    import re
+
+    # Remove extra whitespace
+    date_str = date_str.strip()
+
+    # Pattern for DD MMM YYYY (e.g., "29 MAR 1890")
+    pattern1 = r"(\d{1,2})\s+([A-Z]{3})\s+(\d{4})"
+    match1 = re.match(pattern1, date_str)
+    if match1:
+        day, month_abbr, year = match1.groups()
+        month_map = {
+            "JAN": "01",
+            "FEB": "02",
+            "MAR": "03",
+            "APR": "04",
+            "MAY": "05",
+            "JUN": "06",
+            "JUL": "07",
+            "AUG": "08",
+            "SEP": "09",
+            "OCT": "10",
+            "NOV": "11",
+            "DEC": "12",
+        }
+        if month_abbr in month_map:
+            return f"{year}-{month_map[month_abbr]}-{day.zfill(2)}"
+
+    # Pattern for YYYY-MM-DD (already ISO format)
+    pattern2 = r"(\d{4})-(\d{1,2})-(\d{1,2})"
+    match2 = re.match(pattern2, date_str)
+    if match2:
+        year, month, day = match2.groups()
+        return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+
+    # Pattern for just year YYYY
+    pattern3 = r"^(\d{4})$"
+    match3 = re.match(pattern3, date_str)
+    if match3:
+        return match3.group(1)  # Return just the year
+
+    # If no pattern matches, return None
+    return None
+
+
 def create_family_tree_dot_content(gedcom_parser, individual):
     """Create Graphviz DOT content for a family tree diagram.
 
@@ -236,7 +321,7 @@ def create_family_tree_dot_content(gedcom_parser, individual):
     # Create DOT content for Graphviz
     dot_content = []
     dot_content.append("digraph FamilyTree {")
-    dot_content.append("    rankdir=TB;")
+    dot_content.append("    rankdir=LR;")
     dot_content.append("    bgcolor=white;")
     dot_content.append(
         '    node [shape=box, style="filled,rounded", fillcolor=lightblue, fontname="Arial", fontsize=10, margin=0.1];'
@@ -248,8 +333,9 @@ def create_family_tree_dot_content(gedcom_parser, individual):
     dot_content.append("")
 
     # Define the main person (center)
+    main_dates_info = format_dates_for_dot(individual)
     dot_content.append(
-        f'    "{main_id}" [label="{main_name}\\n({main_id})", fillcolor="#90EE90", fontsize=12, penwidth=3];'
+        f'    "{main_id}" [label="{main_name}{main_dates_info}", fillcolor="#90EE90", fontsize=12, penwidth=3];'
     )
     dot_content.append("")
 
@@ -259,20 +345,10 @@ def create_family_tree_dot_content(gedcom_parser, individual):
         for relation, parent in family_info["parents"]:
             parent_name = format_name_with_maiden_married(parent)
             parent_id = parent.get_pointer()
-            parent_birth = parent.get_birth_data()
-            birth_year = ""
-            if parent_birth and parent_birth[0]:
-                # Extract year from date - get last 4 digits which should be year
-                date_str = parent_birth[0].strip()
-                if len(date_str) >= 4:
-                    # Look for 4-digit year at the end
-                    if date_str[-4:].isdigit():
-                        birth_year = f"\\nb. {date_str[-4:]}"
-                    elif len(date_str) >= 4 and date_str[:4].isdigit():
-                        birth_year = f"\\nb. {date_str[:4]}"
+            dates_info = format_dates_for_dot(parent)
 
             dot_content.append(
-                f'    "{parent_id}" [label="{parent_name}\\n({parent_id}){birth_year}", fillcolor="#FFFFE0"];'
+                f'    "{parent_id}" [label="{parent_name}{dates_info}", fillcolor="#FFFFE0"];'
             )
             dot_content.append(
                 f'    "{parent_id}" -> "{main_id}" [label="{relation.lower()}"];'
@@ -287,18 +363,10 @@ def create_family_tree_dot_content(gedcom_parser, individual):
             spouse_name = format_name_with_maiden_married(spouse)
             spouse_id = spouse.get_pointer()
             spouse_ids.append(spouse_id)
-            spouse_birth = spouse.get_birth_data()
-            birth_year = ""
-            if spouse_birth and spouse_birth[0]:
-                date_str = spouse_birth[0].strip()
-                if len(date_str) >= 4:
-                    if date_str[-4:].isdigit():
-                        birth_year = f"\\nb. {date_str[-4:]}"
-                    elif len(date_str) >= 4 and date_str[:4].isdigit():
-                        birth_year = f"\\nb. {date_str[:4:]}"
+            dates_info = format_dates_for_dot(spouse)
 
             dot_content.append(
-                f'    "{spouse_id}" [label="{spouse_name}\\n({spouse_id}){birth_year}", fillcolor="#FFB6C1"];'
+                f'    "{spouse_id}" [label="{spouse_name}{dates_info}", fillcolor="#FFB6C1"];'
             )
             dot_content.append(
                 f'    "{main_id}" -> "{spouse_id}" [label="married", style=dashed, dir=none];'
@@ -315,18 +383,10 @@ def create_family_tree_dot_content(gedcom_parser, individual):
         for child in family_info["children"]:
             child_name = format_name_with_maiden_married(child)
             child_id = child.get_pointer()
-            child_birth = child.get_birth_data()
-            birth_year = ""
-            if child_birth and child_birth[0]:
-                date_str = child_birth[0].strip()
-                if len(date_str) >= 4:
-                    if date_str[-4:].isdigit():
-                        birth_year = f"\\nb. {date_str[-4:]}"
-                    elif len(date_str) >= 4 and date_str[:4].isdigit():
-                        birth_year = f"\\nb. {date_str[:4]}"
+            dates_info = format_dates_for_dot(child)
 
             dot_content.append(
-                f'    "{child_id}" [label="{child_name}\\n({child_id}){birth_year}", fillcolor="#E0FFFF"];'
+                f'    "{child_id}" [label="{child_name}{dates_info}", fillcolor="#E0FFFF"];'
             )
             dot_content.append(f'    "{main_id}" -> "{child_id}" [label="parent"];')
         dot_content.append("")
@@ -347,118 +407,10 @@ def create_family_tree_diagram(gedcom_parser, individual, output_dir):
     Returns:
         Path to the generated PNG file
     """
-    family_info = get_family_info(gedcom_parser, individual)
     main_name = format_name_with_maiden_married(individual)
-    main_id = individual.get_pointer()
 
-    # Create DOT content for Graphviz
-    dot_content = []
-    dot_content.append("digraph FamilyTree {")
-    dot_content.append("    rankdir=TB;")
-    dot_content.append("    bgcolor=white;")
-    dot_content.append(
-        '    node [shape=box, style="filled,rounded", fillcolor=lightblue, fontname="Arial", fontsize=10, margin=0.1];'
-    )
-    dot_content.append(
-        '    edge [color=gray, fontname="Arial", fontsize=9, penwidth=2];'
-    )
-    dot_content.append("    graph [splines=ortho, nodesep=0.8, ranksep=1.2];")
-    dot_content.append("")
-
-    # Define the main person (center)
-    dot_content.append(
-        f'    "{main_id}" [label="{main_name}\\n({main_id})", fillcolor="#90EE90", fontsize=12, penwidth=3];'
-    )
-    dot_content.append("")
-
-    # Add parents (above)
-    if family_info["parents"]:
-        dot_content.append("    // Parents")
-        for relation, parent in family_info["parents"]:
-            parent_name = format_name_with_maiden_married(parent)
-            parent_id = parent.get_pointer()
-            parent_birth = parent.get_birth_data()
-            birth_year = ""
-            if parent_birth and parent_birth[0]:
-                # Extract year from date - get last 4 digits which should be year
-                date_str = parent_birth[0].strip()
-                if len(date_str) >= 4:
-                    # Look for 4-digit year at the end
-                    if date_str[-4:].isdigit():
-                        birth_year = f"\\nb. {date_str[-4:]}"
-                    elif len(date_str) >= 4 and date_str[:4].isdigit():
-                        birth_year = f"\\nb. {date_str[:4]}"
-
-            dot_content.append(
-                f'    "{parent_id}" [label="{parent_name}\\n({parent_id}){birth_year}", fillcolor="#FFFFE0"];'
-            )
-            dot_content.append(
-                f'    "{parent_id}" -> "{main_id}" [label="{relation.lower()}"];'
-            )
-        dot_content.append("")
-
-    # Add spouse (to the side, same rank as main person)
-    if family_info["spouses"]:
-        dot_content.append("    // Spouse(s) - positioned at same level as main person")
-        spouse_ids = []
-        for i, spouse in enumerate(family_info["spouses"]):
-            spouse_name = format_name_with_maiden_married(spouse)
-            spouse_id = spouse.get_pointer()
-            spouse_ids.append(spouse_id)
-            spouse_birth = spouse.get_birth_data()
-            birth_year = ""
-            if spouse_birth and spouse_birth[0]:
-                date_str = spouse_birth[0].strip()
-                if len(date_str) >= 4:
-                    if date_str[-4:].isdigit():
-                        birth_year = f"\\nb. {date_str[-4:]}"
-                    elif len(date_str) >= 4 and date_str[:4].isdigit():
-                        birth_year = f"\\nb. {date_str[:4]}"
-
-            dot_content.append(
-                f'    "{spouse_id}" [label="{spouse_name}\\n({spouse_id}){birth_year}", fillcolor="#FFB6C1"];'
-            )
-            dot_content.append(
-                f'    "{main_id}" -> "{spouse_id}" [label="married", style=dashed, dir=none];'
-            )
-
-        # Force main person and spouse(s) to be at the same rank (horizontal level)
-        if spouse_ids:
-            spouse_list = '"; "'.join(spouse_ids)
-            dot_content.append(f'    {{ rank=same; "{main_id}"; "{spouse_list}"; }}')
-        dot_content.append("")
-
-    # Add children (below)
-    if family_info["children"]:
-        dot_content.append("    // Children")
-        for child in family_info["children"]:
-            child_name = format_name_with_maiden_married(child)
-            child_id = child.get_pointer()
-            child_birth = child.get_birth_data()
-            birth_year = ""
-            if child_birth and child_birth[0]:
-                date_str = child_birth[0].strip()
-                if len(date_str) >= 4:
-                    if date_str[-4:].isdigit():
-                        birth_year = f"\\nb. {date_str[-4:]}"
-                    elif len(date_str) >= 4 and date_str[:4].isdigit():
-                        birth_year = f"\\nb. {date_str[:4]}"
-
-            dot_content.append(
-                f'    "{child_id}" [label="{child_name}\\n({child_id}){birth_year}", fillcolor="#E0FFFF"];'
-            )
-            dot_content.append(f'    "{main_id}" -> "{child_id}" [label="parent"];')
-        dot_content.append("")
-
-    dot_content.append("}")
-
-    # Write DOT file and generate PNG
-    dot_file = (
-        Path(output_dir) / f"{main_name.lower().replace(' ', '_')}_family_tree.dot"
-    )
-    png_file = (
-        Path(output_dir) / f"{main_name.lower().replace(' ', '_')}_family_tree.png"
-    )
+    # Generate DOT content using our dedicated function
+    dot_content = create_family_tree_dot_content(gedcom_parser, individual)
 
     # Clean filename
     clean_main_name = re.sub(r"[^a-zA-Z0-9_]", "_", main_name.lower())
@@ -468,7 +420,7 @@ def create_family_tree_diagram(gedcom_parser, individual, output_dir):
     try:
         # Write DOT file
         with open(dot_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(dot_content))
+            f.write(dot_content)
 
         # Generate PNG using Graphviz
         subprocess.run(
