@@ -1119,7 +1119,9 @@ def generate_individual_content(
     return lines
 
 
-def generate_asciidoc(gedcom_parser, individual, output_file=None, generations=4):
+def generate_asciidoc(
+    gedcom_parser, individual, output_file=None, generations=4, gedcom_file_path=None
+):
     """Generate AsciiDoc format genealogy document for an individual.
 
     Args:
@@ -1127,6 +1129,7 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None, generations=4
         individual: Individual element to generate document for
         output_file: Optional output file path (defaults to family_tree.adoc)
         generations: Number of generations to include (1=main only, 2=+parents, etc.)
+        gedcom_file_path: Path to the original GEDCOM file (for documentation purposes)
     """
     # Use enhanced name formatting for document title (prioritizes married names)
     document_title_name = format_name_with_maiden_married(individual)
@@ -1181,10 +1184,20 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None, generations=4
     lines.append("")
     lines.append("== Document Information")
     lines.append("")
-    lines.append(
-        "This document was automatically generated from a GEDCOM file "
-        "using the GEDCOM Visualizer tool."
-    )
+    if gedcom_file_path:
+        import os
+
+        filename = os.path.basename(gedcom_file_path)
+        lines.append(f"Imported from {filename}")
+        lines.append("")
+        lines.append(
+            "This document was automatically generated using the GEDCOM Visualizer tool."
+        )
+    else:
+        lines.append(
+            "This document was automatically generated from a GEDCOM file "
+            "using the GEDCOM Visualizer tool."
+        )
     lines.append("")
 
     # Write to file or stdout
@@ -1282,7 +1295,9 @@ def main():
         generate_asciidoc._no_toc = args.no_toc
         generate_asciidoc._external_png = args.external_png
         generate_asciidoc._no_additional_info = args.no_additional_info
-        generate_asciidoc(gedcom_parser, individual, args.output, args.generations)
+        generate_asciidoc(
+            gedcom_parser, individual, args.output, args.generations, args.gedcom_file
+        )
     except (OSError, IOError) as e:
         print(f"Error generating AsciiDoc: {e}", file=sys.stderr)
         sys.exit(1)
