@@ -244,7 +244,7 @@ def convert_asciidoc_to_rst(asciidoc_file, rst_file):
             # Convert AsciiDoc bold syntax *word* to RST **word**
             if "*" in converted:
                 converted = re.sub(r"\*([^\*]+?)\*", r"**\1**", converted)
-            # Convert AsciiDoc cross-references <<anchor,text>> to RST :ref:`text <anchor>`
+            # Convert AsciiDoc cross-refs <<anchor,text>> to RST :ref:`text <anchor>`
             if "<<" in converted:
                 converted = re.sub(
                     r"<<([^,>]+),([^>]+)>>", r":ref:`\2 <\1>`", converted

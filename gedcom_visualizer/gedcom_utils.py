@@ -194,7 +194,7 @@ def parse_gedcom_lenient(file_path):
 
                     # If this is a reasonable level (0-9), include it
                     if level <= 9:
-                        # Skip lines with problematic content that might cause parser issues
+                        # Skip lines with problematic content that cause parser issues
                         if not any(
                             prob in line.lower()
                             for prob in ["http://", "https://", "<a ", "href="]
@@ -277,7 +277,8 @@ def load_gedcom_robust(file_path, verbose=False):
         except Exception as original_error:
             if verbose:
                 print(
-                    f"Warning: Standard parsing failed ({original_error}), trying lenient parser..."
+                    f"Warning: Standard parsing failed ({original_error}), "
+                    f"trying lenient parser..."
                 )
 
             # Method 3: Try lenient manual parsing

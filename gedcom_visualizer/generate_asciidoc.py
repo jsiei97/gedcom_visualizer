@@ -14,6 +14,39 @@ import html
 from pathlib import Path
 from gedcom.element.individual import IndividualElement
 from .gedcom_utils import load_gedcom_robust
+from datetime import date
+
+
+def generate_filename(individual, extension="adoc"):
+    """Generate a verbose filename with full name and creation date.
+
+    Format: fullname_-_YYYY-MM-DD.extension (no whitespaces)
+
+    Args:
+        individual: IndividualElement object
+        extension: File extension (default: "adoc")
+
+    Returns:
+        Generated filename string
+    """
+    # Get the enhanced name (married name preferred)
+    full_name = format_name_with_maiden_married(individual)
+
+    # Remove the "(born ...)" part if present
+    if " (born " in full_name:
+        full_name = full_name.split(" (born ")[0]
+
+    # Clean the name for filename: remove special characters, replace spaces
+    clean_name = re.sub(r"[^\w\s-]", "", full_name.strip())
+    clean_name = re.sub(r"\s+", "_", clean_name).lower()
+
+    # Get current date in ISO format
+    current_date = date.today().strftime("%Y-%m-%d")
+
+    # Generate filename: fullname_-_YYYY-MM-DD.extension
+    filename = f"{clean_name}_-_{current_date}.{extension}"
+
+    return filename
 
 
 def load_gedcom(file_path):
@@ -196,7 +229,7 @@ def clean_name_string(name_str):
         return name_str
 
     # Remove parentheses around single words/names (e.g., "(Carl)" -> "Carl")
-    # This pattern matches parentheses that contain only letters, spaces, and common name characters
+    # Pattern matches parentheses with letters, spaces, and common name chars
     import re
 
     cleaned = re.sub(r"\(([A-Za-z\s\-\'\.]+)\)", r"\1", name_str)
@@ -267,7 +300,7 @@ def format_name_with_maiden_married(individual):
 
     # Format the name based on what information we have
     if married_name and birth_surname and married_name != birth_surname:
-        # Both maiden and married names - use married name as primary, show maiden in parentheses
+        # Both maiden and married names - married name primary, maiden in parens
         return f"{given_name} {married_name} (born {birth_surname})"
     elif married_name:
         # Only married name available
@@ -308,7 +341,7 @@ def clean_html_source_text(text):
     # Clean up any remaining HTML tags (simple approach)
     cleaned = re.sub(r"<[^>]+>", "", cleaned)
 
-    # Clean up multiple spaces and normalize whitespace, but preserve the line structure we created
+    # Clean up multiple spaces and normalize whitespace, preserve line structure
     lines = cleaned.split("\n")
     cleaned_lines = []
     for line in lines:
@@ -426,7 +459,8 @@ def create_family_tree_dot_content(gedcom_parser, individual):
     dot_content.append("    rankdir=LR;")
     dot_content.append("    bgcolor=white;")
     dot_content.append(
-        '    node [shape=box, style="filled,rounded", fillcolor=lightblue, fontname="Arial", fontsize=10, margin=0.1];'
+        '    node [shape=box, style="filled,rounded", fillcolor=lightblue, '
+        'fontname="Arial", fontsize=10, margin=0.1];'
     )
     dot_content.append(
         '    edge [color=gray, fontname="Arial", fontsize=9, penwidth=2];'
@@ -437,7 +471,8 @@ def create_family_tree_dot_content(gedcom_parser, individual):
     # Define the main person (center)
     main_dates_info = format_dates_for_dot(individual)
     dot_content.append(
-        f'    "{main_id}" [label="{main_name}{main_dates_info}", fillcolor="#90EE90", fontsize=12, penwidth=3];'
+        f'    "{main_id}" [label="{main_name}{main_dates_info}", '
+        f'fillcolor="#90EE90", fontsize=12, penwidth=3];'
     )
     dot_content.append("")
 
@@ -450,7 +485,8 @@ def create_family_tree_dot_content(gedcom_parser, individual):
             dates_info = format_dates_for_dot(parent)
 
             dot_content.append(
-                f'    "{parent_id}" [label="{parent_name}{dates_info}", fillcolor="#FFFFE0"];'
+                f'    "{parent_id}" [label="{parent_name}{dates_info}", '
+                f'fillcolor="#FFFFE0"];'
             )
             dot_content.append(
                 f'    "{parent_id}" -> "{main_id}" [label="{relation.lower()}"];'
@@ -468,10 +504,12 @@ def create_family_tree_dot_content(gedcom_parser, individual):
             dates_info = format_dates_for_dot(spouse)
 
             dot_content.append(
-                f'    "{spouse_id}" [label="{spouse_name}{dates_info}", fillcolor="#FFB6C1"];'
+                f'    "{spouse_id}" [label="{spouse_name}{dates_info}", '
+                f'fillcolor="#FFB6C1"];'
             )
             dot_content.append(
-                f'    "{main_id}" -> "{spouse_id}" [label="married", style=dashed, dir=none];'
+                f'    "{main_id}" -> "{spouse_id}" [label="married", '
+                f'style=dashed, dir=none];'
             )
 
         # Force main person and spouse(s) to be at the same rank (horizontal level)
@@ -488,7 +526,8 @@ def create_family_tree_dot_content(gedcom_parser, individual):
             dates_info = format_dates_for_dot(child)
 
             dot_content.append(
-                f'    "{child_id}" [label="{child_name}{dates_info}", fillcolor="#E0FFFF"];'
+                f'    "{child_id}" [label="{child_name}{dates_info}", '
+                f'fillcolor="#E0FFFF"];'
             )
             dot_content.append(f'    "{main_id}" -> "{child_id}" [label="parent"];')
         dot_content.append("")
@@ -714,7 +753,7 @@ def collect_ancestors_recursive(
     visited.add(individual_id)
     result.append((individual, current_generation))
 
-    # If we've reached the max generations limit, stop (unless max_generations is 0 for unlimited)
+    # If we've reached the max generations limit, stop (0 = unlimited)
     if max_generations > 0 and current_generation >= max_generations:
         return result
 
@@ -730,7 +769,7 @@ def collect_ancestors_recursive(
 
 
 def generate_cross_reference_link(person_id, person_name, chapter_individuals):
-    """Generate a cross-reference link if the person has a chapter, otherwise just show the name.
+    """Generate cross-reference link if person has chapter, else show name.
 
     Args:
         person_id: The GEDCOM ID of the person (e.g., @I500005@)
@@ -1137,8 +1176,6 @@ def generate_asciidoc(
     if " (born " in document_title_name:
         document_title_name = document_title_name.split(" (born ")[0]
 
-    pointer = individual.get_pointer()
-
     # Store output directory for helper function if using external PNG
     if output_file:
         generate_asciidoc._output_dir = Path(output_file).parent
@@ -1191,7 +1228,8 @@ def generate_asciidoc(
         lines.append(f"Imported from {filename}")
         lines.append("")
         lines.append(
-            "This document was automatically generated using the GEDCOM Visualizer tool."
+            "This document was automatically generated using the "
+            "GEDCOM Visualizer tool."
         )
     else:
         lines.append(
@@ -1208,15 +1246,8 @@ def generate_asciidoc(
             f.write(content)
         print(f"AsciiDoc document written to: {output_file}")
     else:
-        # Generate default filename based on individual's name
-        name = individual.get_name()
-        if name and name[0]:
-            # Clean the name for use as filename
-            clean_name = re.sub(r"[^\w\s-]", "", name[0].strip())
-            clean_name = re.sub(r"\s+", "_", clean_name).lower()
-            default_output = f"{clean_name}.adoc"
-        else:
-            default_output = "family_tree.adoc"
+        # Generate default filename with verbose format: fullname_-_YYYY-MM-DD.adoc
+        default_output = generate_filename(individual, "adoc")
 
         with open(default_output, "w", encoding="utf-8") as f:
             f.write(content)
@@ -1249,18 +1280,21 @@ def main():
     parser.add_argument(
         "--external-png",
         action="store_true",
-        help="Generate external PNG files instead of embedding DOT content (legacy mode)",
+        help="Generate external PNG files instead of embedding DOT (legacy mode)",
     )
     parser.add_argument(
         "--no-additional-info",
         action="store_true",
-        help="Disable Additional Information section (life events, residences, sources, etc.)",
+        help="Disable Additional Information section (events, residences, etc.)",
     )
     parser.add_argument(
         "--generations",
         type=int,
         default=4,
-        help="Number of generations to include (1=main person only, 2=+parents, 3=+grandparents, 4=+great-grandparents, etc. Default: 4, 0=all available)",
+        help=(
+            "Number of generations to include (1=main person only, "
+            "2=+parents, 3=+grandparents, etc. Default: 4, 0=all available)"
+        ),
         metavar="N",
     )
 
