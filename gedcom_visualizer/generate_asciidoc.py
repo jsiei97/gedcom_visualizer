@@ -49,6 +49,72 @@ def get_individual_by_id(gedcom_parser, individual_id):
     return None
 
 
+def get_parent_relationships(gedcom_parser, individual):
+    """Get parent relationships with biological vs adoptive distinction.
+
+    Args:
+        gedcom_parser: Parsed GEDCOM data
+        individual: Individual element
+
+    Returns:
+        Dictionary with biological_parents, adoptive_parents, and all_parents lists
+    """
+    biological_parents = []
+    adoptive_parents = []
+    all_parents = []
+
+    element_dict = gedcom_parser.get_element_dictionary()
+
+    # Look through individual's child elements for FAMC (Family as Child) records
+    for child_element in individual.get_child_elements():
+        if child_element.get_tag() == "FAMC":
+            family_pointer = child_element.get_value()
+            family = element_dict.get(family_pointer)
+
+            if not family:
+                continue
+
+            # Check if this family relationship has a PEDI (pedigree) type
+            is_adopted = False
+            for famc_child in child_element.get_child_elements():
+                if (
+                    famc_child.get_tag() == "PEDI"
+                    and famc_child.get_value() == "Adopted"
+                ):
+                    is_adopted = True
+                    break
+
+            # Get parents from this family
+            family_parents = []
+            for family_child in family.get_child_elements():
+                if family_child.get_tag() in ["HUSB", "WIFE"]:
+                    parent_pointer = family_child.get_value()
+                    parent = element_dict.get(parent_pointer)
+                    if parent:
+                        gender = parent.get_gender()
+                        if gender == "M":
+                            relationship = "Foster Father" if is_adopted else "Father"
+                        elif gender == "F":
+                            relationship = "Foster Mother" if is_adopted else "Mother"
+                        else:
+                            relationship = "Foster Parent" if is_adopted else "Parent"
+
+                        parent_info = (relationship, parent)
+                        family_parents.append(parent_info)
+                        all_parents.append(parent_info)
+
+                        if is_adopted:
+                            adoptive_parents.append(parent_info)
+                        else:
+                            biological_parents.append(parent_info)
+
+    return {
+        "biological_parents": biological_parents,
+        "adoptive_parents": adoptive_parents,
+        "all_parents": all_parents,
+    }
+
+
 def get_family_info(gedcom_parser, individual):
     """Get family information for an individual.
 
@@ -61,15 +127,11 @@ def get_family_info(gedcom_parser, individual):
     """
     result = {"parents": [], "spouses": [], "children": [], "siblings": []}
 
-    # Get parents
-    parents = gedcom_parser.get_parents(individual)
-    for parent in parents:
-        if parent.get_gender() == "M":
-            result["parents"].append(("Father", parent))
-        elif parent.get_gender() == "F":
-            result["parents"].append(("Mother", parent))
-        else:
-            result["parents"].append(("Parent", parent))
+    # Get parents with relationship types (biological vs adoptive)
+    parents_info = get_parent_relationships(gedcom_parser, individual)
+    result["parents"] = parents_info["all_parents"]
+    result["biological_parents"] = parents_info["biological_parents"]
+    result["adoptive_parents"] = parents_info["adoptive_parents"]
 
     # Get siblings - find other children of the same parents
     individual_pointer = individual.get_pointer()
@@ -121,6 +183,40 @@ def get_family_info(gedcom_parser, individual):
     return result
 
 
+def clean_name_string(name_str):
+    """Clean up name string by removing unwanted characters and formatting.
+
+    Args:
+        name_str: Raw name string that may contain unwanted formatting
+
+    Returns:
+        Cleaned name string
+    """
+    if not name_str:
+        return name_str
+
+    # Remove parentheses around single words/names (e.g., "(Carl)" -> "Carl")
+    # This pattern matches parentheses that contain only letters, spaces, and common name characters
+    import re
+
+    cleaned = re.sub(r"\(([A-Za-z\s\-\'\.]+)\)", r"\1", name_str)
+
+    # Remove other problematic characters commonly found in GEDCOM names
+    # Remove forward slashes (sometimes used for alternate spellings)
+    cleaned = re.sub(r"/", " ", cleaned)
+
+    # Remove asterisks (sometimes used for emphasis or notes)
+    cleaned = re.sub(r"\*", "", cleaned)
+
+    # Remove question marks (used for uncertain names)
+    cleaned = re.sub(r"\?", "", cleaned)
+
+    # Remove extra whitespace and normalize spaces
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    return cleaned
+
+
 def format_name(individual):
     """Format individual's name.
 
@@ -132,7 +228,9 @@ def format_name(individual):
     """
     name = individual.get_name()
     if name:
-        return f"{name[0]} {name[1] if len(name) > 1 else ''}".strip()
+        given_name = clean_name_string(name[0]) if name[0] else ""
+        surname = clean_name_string(name[1]) if len(name) > 1 and name[1] else ""
+        return f"{given_name} {surname}".strip()
     return "Unknown"
 
 
@@ -149,8 +247,12 @@ def format_name_with_maiden_married(individual):
     if not name_parts or not name_parts[0]:
         return "Unknown"
 
-    given_name = name_parts[0]
-    birth_surname = name_parts[1] if len(name_parts) > 1 and name_parts[1] else ""
+    given_name = clean_name_string(name_parts[0])
+    birth_surname = (
+        clean_name_string(name_parts[1])
+        if len(name_parts) > 1 and name_parts[1]
+        else ""
+    )
 
     # Check for married name
     married_name = None
@@ -158,7 +260,7 @@ def format_name_with_maiden_married(individual):
         if element.get_tag() == "NAME":
             for name_element in element.get_child_elements():
                 if name_element.get_tag() == "_MARNM" and name_element.get_value():
-                    married_name = name_element.get_value().strip()
+                    married_name = clean_name_string(name_element.get_value().strip())
                     break
             if married_name:
                 break
@@ -339,10 +441,10 @@ def create_family_tree_dot_content(gedcom_parser, individual):
     )
     dot_content.append("")
 
-    # Add parents (above)
-    if family_info["parents"]:
-        dot_content.append("    // Parents")
-        for relation, parent in family_info["parents"]:
+    # Add parents (above) - only biological parents in diagram
+    if family_info["biological_parents"]:
+        dot_content.append("    // Biological Parents")
+        for relation, parent in family_info["biological_parents"]:
             parent_name = format_name_with_maiden_married(parent)
             parent_id = parent.get_pointer()
             dates_info = format_dates_for_dot(parent)
@@ -765,24 +867,45 @@ def generate_individual_content(
         lines.append("=== Family Relationships")
         lines.append("")
 
-        if family_info["parents"]:
+        if family_info["biological_parents"] or family_info["adoptive_parents"]:
             lines.append("==== Parents")
             lines.append("")
-            for relation, parent in family_info["parents"]:
-                parent_name = format_name_with_maiden_married(parent)
-                parent_id = parent.get_pointer()
-                parent_link = generate_cross_reference_link(
-                    parent_id, parent_name, chapter_individuals
-                )
-                lines.append(f"* *{relation}:* {parent_link}")
 
-                parent_birth = parent.get_birth_data()
-                if parent_birth and parent_birth[0]:
-                    lines.append(f"** Born: {parent_birth[0]}")
+            # Show biological parents first
+            if family_info["biological_parents"]:
+                for relation, parent in family_info["biological_parents"]:
+                    parent_name = format_name_with_maiden_married(parent)
+                    parent_id = parent.get_pointer()
+                    parent_link = generate_cross_reference_link(
+                        parent_id, parent_name, chapter_individuals
+                    )
+                    lines.append(f"* *{relation}:* {parent_link}")
 
-                parent_death = parent.get_death_data()
-                if parent_death and parent_death[0]:
-                    lines.append(f"** Died: {parent_death[0]}")
+                    parent_birth = parent.get_birth_data()
+                    if parent_birth and parent_birth[0]:
+                        lines.append(f"** Born: {parent_birth[0]}")
+
+                    parent_death = parent.get_death_data()
+                    if parent_death and parent_death[0]:
+                        lines.append(f"** Died: {parent_death[0]}")
+
+            # Show adoptive/foster parents
+            if family_info["adoptive_parents"]:
+                for relation, parent in family_info["adoptive_parents"]:
+                    parent_name = format_name_with_maiden_married(parent)
+                    parent_id = parent.get_pointer()
+                    parent_link = generate_cross_reference_link(
+                        parent_id, parent_name, chapter_individuals
+                    )
+                    lines.append(f"* *{relation}:* {parent_link}")
+
+                    parent_birth = parent.get_birth_data()
+                    if parent_birth and parent_birth[0]:
+                        lines.append(f"** Born: {parent_birth[0]}")
+
+                    parent_death = parent.get_death_data()
+                    if parent_death and parent_death[0]:
+                        lines.append(f"** Died: {parent_death[0]}")
             lines.append("")
 
         if family_info["siblings"]:
@@ -1021,7 +1144,8 @@ def generate_asciidoc(gedcom_parser, individual, output_file=None, generations=4
 
     # Start building the AsciiDoc content
     lines = []
-    lines.append(f"= {document_title_name}")
+    # Create a more descriptive title for the family history document
+    lines.append(f"= {document_title_name} - Family History")
 
     # Add table of contents unless disabled
     if not getattr(generate_asciidoc, "_no_toc", False):

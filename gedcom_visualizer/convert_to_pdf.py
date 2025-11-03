@@ -21,6 +21,11 @@ def create_sphinx_config(source_dir, title="GEDCOM Document"):
         source_dir: Directory where Sphinx configuration will be created
         title: Title for the document
     """
+    # Get current date in ISO format for the revision
+    from datetime import date
+
+    current_date = date.today().strftime("%Y-%m-%d")
+
     conf_content = f"""# Configuration file for Sphinx documentation builder
 # Configured for European A4 paper standard
 
@@ -31,7 +36,7 @@ import sys
 project = '{title}'
 copyright = '2025, GEDCOM Visualizer'
 author = 'GEDCOM Visualizer'
-release = '1.0'
+release = '{current_date}'
 
 # General configuration
 extensions = ['sphinx.ext.graphviz', 'sphinx.ext.autosectionlabel']
@@ -73,6 +78,8 @@ latex_elements = {{
     bookmarks=true,
     bookmarksnumbered=true
 }}
+% Change "Release" to "Rev" in the title page
+\\renewcommand{{\\releasename}}{{Rev}}
     ''',
     'figure_align': 'htbp',
     'fncychap': '',
