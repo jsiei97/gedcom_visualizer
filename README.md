@@ -1,26 +1,52 @@
 # GEDCOM Visualizer
 
-A collection of Python scripts for parsing and visualizing GEDCOM genealogy files. This project provides tools to extract, format, and present genealogical data in human-readable formats.
+A collection of Python scripts for parsing and visualizing GEDCOM genealogy files.
+This project provides tools to extract, format,
+and present genealogical data in human-readable formats with A4 paper formatting for European use.
 
 ## Features
 
 The project consists of three main scripts:
 
 1. **List and Search** (`list_search.py`) - Browse and search individuals in a GEDCOM file
-2. **Generate AsciiDoc** (`generate_asciidoc.py`) - Create formatted documents for individuals
-3. **Convert to PDF** (`convert_to_pdf.py`) - Transform AsciiDoc documents into PDF format
+2. **Generate AsciiDoc** (`generate_asciidoc.py`) - Create formatted documents with smart name handling (married/maiden names) and personalized chapter titles
+3. **Convert to PDF** (`convert_to_pdf.py`) - Transform AsciiDoc documents into A4 PDF format with Unicode support
 
-## Installation and Setup (Ubuntu 24.04)
+## Development Environment Options
 
-This tool is designed to run inside a container on Ubuntu 24.04 using Podman and DistroBox. The container includes all necessary dependencies (Python, LaTeX, and required libraries).
+### Option 1: VS Code Development Container (Recommended)
 
-### Prerequisites
+The easiest way to get started is using the VS Code Development Container:
+
+1. **Prerequisites**:
+   - VS Code with the Dev Containers extension
+   - Docker or Podman installed
+
+2. **Setup**:
+   - Open the project in VS Code
+   - Click "Reopen in Container" when prompted, or
+   - Press `Ctrl+Shift+P` → "Dev Containers: Reopen in Container"
+
+3. **Benefits**:
+   - Automatic setup of all dependencies
+   - Pre-configured debugging and tasks
+   - Consistent environment across all developers
+   - No need to manually install Python packages
+
+See [`.devcontainer/README.md`](.devcontainer/README.md) for detailed instructions.
+
+### Option 2: Traditional Container Setup (Ubuntu 24.04)
+
+This tool is designed to run inside a container on Ubuntu 24.04 using Podman and DistroBox.
+The container includes all necessary dependencies (Python, LaTeX, Graphviz, and required libraries).
+
+#### Prerequisites
 
 - Ubuntu 24.04 LTS
 - Podman installed: `sudo apt-get install podman`
 - DistroBox installed: Follow instructions at https://github.com/89luca89/distrobox
 
-### Step 1: Build the Container
+#### Step 1: Build the Container
 
 Build the container image using the provided script:
 
@@ -30,7 +56,7 @@ Build the container image using the provided script:
 
 This script uses Podman to build a container image named `gedcom-visualizer:latest` with all dependencies pre-installed.
 
-### Step 2: Create and Start the DistroBox Container
+#### Step 2: Create and Start the DistroBox Container
 
 Use the provided script to create a DistroBox container:
 
@@ -49,15 +75,20 @@ To enter the container after creation:
 distrobox enter gedcom-viz
 ```
 
-### Mounting GEDCOM Files
+#### Mounting GEDCOM Files
 
-Your home directory is automatically mounted inside the DistroBox container, so you can access your GEDCOM files directly. Place your GEDCOM files anywhere in your home directory and access them from within the container using the same paths.
+Your home directory is automatically mounted inside the DistroBox container,
+so you can access your GEDCOM files directly.
+Place your GEDCOM files anywhere in your home directory and access them
+from within the container using the same paths.
 
-For example, if your GEDCOM file is at `~/Documents/family.ged` on your host system, you can access it at `~/Documents/family.ged` inside the container.
+For example, if your GEDCOM file is at `~/Documents/family.ged` on your host system,
+you can access it at `~/Documents/family.ged` inside the container.
 
 ## Usage Inside the Container
 
-**Important:** All Python scripts should be executed inside the container environment. After entering the container with `distrobox enter gedcom-viz`, you can use the following commands.
+**Important:** All Python scripts should be executed inside the container environment.
+After entering the container with `distrobox enter gedcom-viz`, you can use the following commands.
 
 The package provides three convenient command-line tools:
 
@@ -86,10 +117,13 @@ gedcom-generate ~/Documents/family.ged @I1@ -o output.adoc
 ```
 
 The document includes:
-- Personal information (name, birth, death)
-- Parents
-- Spouse(s)
-- Children
+- Personal information with personalized chapter titles using married names when available (e.g., "Simonsson Personal Information")
+- Smart name handling: shows married names as primary with maiden names indicated (e.g., "Ingrid Monica Simonsson (née Carlsson)")
+- Comprehensive biographical data (birth, death, residence history, life events)
+- Family tree diagram with proper spouse positioning
+- Parents, spouse(s), and children relationships
+- Source references and data quality information
+- Contact information and record metadata
 
 ### Script 3: Convert to PDF
 
@@ -125,7 +159,8 @@ gedcom-convert ~/Documents/john_smith.adoc -o ~/Documents/john_smith.pdf
 
 ### Using the Sample GEDCOM File
 
-A sample GEDCOM file is provided in the `examples/` directory for testing. The project files are available at `/workspace/` inside the container:
+A sample GEDCOM file is provided in the `examples/` directory for testing.
+The project files are available at `/workspace/` inside the container:
 
 ```bash
 # Inside the container
@@ -148,10 +183,33 @@ gedcom_visualizer/
 ├── Dockerfile                 # Container definition
 ├── build-container.sh         # Script to build the container
 ├── run-distrobox.sh          # Script to set up DistroBox
+├── cleanup.sh                # Script to clean temporary files
 ├── requirements.txt           # Python dependencies
 ├── setup.py                   # Package installation
 └── README.md                  # This file
 ```
+
+## Cleanup
+
+Use the cleanup script to remove temporary files generated during development:
+
+```bash
+# Interactive cleanup (asks for confirmation)
+./cleanup.sh
+
+# Force cleanup (removes files without asking)
+./cleanup.sh --force
+
+# Or use the short form
+./cleanup.sh -f
+```
+
+The cleanup script removes:
+- `*.adoc` - AsciiDoc source files
+- `*.pdf` - Generated PDF files
+- `*.dot` - Graphviz DOT files
+- `*.png` - Family tree images
+- LaTeX temporary files (`*.aux`, `*.log`, etc.)
 
 ## Command Line Options
 
@@ -202,9 +260,16 @@ optional arguments:
 
 ## Dependencies
 
+### System Dependencies
+- **Graphviz** - Graph visualization software (for family tree diagrams)
+- **LaTeX/TeXLive** - Document preparation system (for PDF generation)
+
+### Python Dependencies
 - **python-gedcom** - GEDCOM file parsing library
 - **sphinx** - Documentation generator (used for PDF conversion)
 - **sphinx-rtd-theme** - Read the Docs theme for Sphinx
+
+All dependencies are automatically installed in the development container environment.
 
 ## License
 

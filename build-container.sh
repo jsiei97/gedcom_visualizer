@@ -32,8 +32,8 @@ fi
 echo -e "${YELLOW}Building container image: ${FULL_IMAGE_NAME}${NC}"
 echo
 
-# Build the container using podman
-podman build -t "${FULL_IMAGE_NAME}" .
+# Build the container using podman (production target)
+podman build --target production -t "${FULL_IMAGE_NAME}" .
 
 if [ $? -eq 0 ]; then
     echo
