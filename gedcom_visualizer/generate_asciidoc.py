@@ -628,7 +628,7 @@ def collect_ancestors_recursive(
 
 
 def generate_cross_reference_link(person_id, person_name, chapter_individuals):
-    """Generate a cross-reference link if the person has a chapter, otherwise just show the ID.
+    """Generate a cross-reference link if the person has a chapter, otherwise just show the name.
 
     Args:
         person_id: The GEDCOM ID of the person (e.g., @I500005@)
@@ -636,15 +636,15 @@ def generate_cross_reference_link(person_id, person_name, chapter_individuals):
         chapter_individuals: Set of individual IDs that have their own chapters
 
     Returns:
-        String with either a clickable link or plain text
+        String with either a clickable link or plain text name (no ID tags)
     """
     if person_id in chapter_individuals:
         # Create a clickable cross-reference link with clean anchor ID
         clean_id = person_id.replace("@", "")
-        return f"<<{clean_id},{person_name}>> ({person_id})"
+        return f"<<{clean_id},{person_name}>>"
     else:
-        # Just show the ID as plain text
-        return f"{person_name} ({person_id})"
+        # Just show the name without ID
+        return f"{person_name}"
 
 
 def generate_individual_content(
@@ -863,7 +863,8 @@ def generate_individual_content(
         or bio_info["metadata"]
     )
 
-    if has_bio_info:
+    # Only show Additional Information section if not disabled and we have info
+    if has_bio_info and not getattr(generate_asciidoc, "_no_additional_info", False):
         lines.append("=== Additional Information")
         lines.append("")
 
@@ -1114,6 +1115,11 @@ def main():
         help="Generate external PNG files instead of embedding DOT content (legacy mode)",
     )
     parser.add_argument(
+        "--no-additional-info",
+        action="store_true",
+        help="Disable Additional Information section (life events, residences, sources, etc.)",
+    )
+    parser.add_argument(
         "--generations",
         type=int,
         default=4,
@@ -1151,6 +1157,7 @@ def main():
         generate_asciidoc._no_tree = args.no_tree
         generate_asciidoc._no_toc = args.no_toc
         generate_asciidoc._external_png = args.external_png
+        generate_asciidoc._no_additional_info = args.no_additional_info
         generate_asciidoc(gedcom_parser, individual, args.output, args.generations)
     except (OSError, IOError) as e:
         print(f"Error generating AsciiDoc: {e}", file=sys.stderr)
