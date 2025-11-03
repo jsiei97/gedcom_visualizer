@@ -354,6 +354,33 @@ def clean_html_source_text(text):
     return cleaned
 
 
+def format_name_for_diagram(individual):
+    """Format name compactly for diagram nodes.
+
+    Args:
+        individual: Individual element
+
+    Returns:
+        Compact formatted name string for diagrams
+    """
+    name_parts = individual.get_name()
+    if not name_parts or not name_parts[0]:
+        return "Unknown"
+
+    full_name = name_parts[0].strip()
+
+    # Extract given name and surname more intelligently
+    name_clean = full_name.replace("/", " ").strip()
+    parts = name_clean.split()
+
+    if len(parts) >= 2:
+        given_name = parts[0]
+        surname = parts[-1]  # Take last part as surname
+        return f"{given_name}\\n{surname}"
+    else:
+        return name_clean.replace(" ", "\\n")
+
+
 def format_dates_for_dot(individual):
     """Format birth and death dates for DOT diagram labels in ISO format.
 
@@ -440,7 +467,7 @@ def convert_to_iso_date(date_str):
 
 
 def create_family_tree_dot_content(gedcom_parser, individual):
-    """Create Graphviz DOT content for a family tree diagram.
+    """Create improved Graphviz DOT content for a family tree diagram.
 
     Args:
         gedcom_parser: Parsed GEDCOM data
@@ -453,45 +480,68 @@ def create_family_tree_dot_content(gedcom_parser, individual):
     main_name = format_name_with_maiden_married(individual)
     main_id = individual.get_pointer()
 
-    # Create DOT content for Graphviz
+    # Create DOT content for Graphviz with improved layout
     dot_content = []
     dot_content.append("digraph FamilyTree {")
-    dot_content.append("    rankdir=LR;")
+    dot_content.append("    rankdir=LR;")  # Left to Right: parents → main → children
     dot_content.append("    bgcolor=white;")
+    dot_content.append("    concentrate=true;")  # Merge edges where possible
     dot_content.append(
-        '    node [shape=box, style="filled,rounded", fillcolor=lightblue, '
-        'fontname="Arial", fontsize=10, margin=0.1];'
+        '    node [shape=record, style="filled,rounded", fontname="Arial", '
+        'fontsize=9, margin=0.05];'
     )
     dot_content.append(
-        '    edge [color=gray, fontname="Arial", fontsize=9, penwidth=2];'
+        '    edge [color="#666666", fontname="Arial", fontsize=8, penwidth=1.5, '
+        'arrowsize=0.7];'
     )
-    dot_content.append("    graph [splines=ortho, nodesep=0.8, ranksep=1.2];")
+    dot_content.append(
+        "    graph [splines=true, overlap=false, nodesep=0.6, ranksep=0.8, "
+        "compound=true];"
+    )
     dot_content.append("")
 
-    # Define the main person (center)
-    main_dates_info = format_dates_for_dot(individual)
-    dot_content.append(
-        f'    "{main_id}" [label="{main_name}{main_dates_info}", '
-        f'fillcolor="#90EE90", fontsize=12, penwidth=3];'
-    )
+    # Add subgraph for better organization
+    dot_content.append("    // Family structure with proper hierarchy")
     dot_content.append("")
 
     # Add parents (above) - only biological parents in diagram
     if family_info["biological_parents"]:
         dot_content.append("    // Biological Parents")
+        parent_ids = []
+
         for relation, parent in family_info["biological_parents"]:
             parent_name = format_name_with_maiden_married(parent)
             parent_id = parent.get_pointer()
+            parent_ids.append(parent_id)
             dates_info = format_dates_for_dot(parent)
 
             dot_content.append(
                 f'    "{parent_id}" [label="{parent_name}{dates_info}", '
-                f'fillcolor="#FFFFE0"];'
+                f'fillcolor="#E6F3FF"];'
             )
+
+        # Force parents to same rank if both exist
+        if len(parent_ids) == 2:
+            parent_list = '"; "'.join(parent_ids)
+            dot_content.append(f'    {{ rank=same; "{parent_list}"; }}')
+        dot_content.append("")
+
+    # Define the main person (center)
+    main_dates_info = format_dates_for_dot(individual)
+    dot_content.append(
+        f'    "{main_id}" [label="{main_name}{main_dates_info}", '
+        f'fillcolor="#90EE90", fontsize=10, penwidth=2];'
+    )
+    dot_content.append("")
+
+    # Connect parents directly to main person with visible lines
+    if family_info["biological_parents"]:
+        for relation, parent in family_info["biological_parents"]:
+            parent_id = parent.get_pointer()
             dot_content.append(
                 f'    "{parent_id}" -> "{main_id}" [label="{relation.lower()}"];'
             )
-        dot_content.append("")
+    dot_content.append("")
 
     # Add spouse (to the side, same rank as main person)
     if family_info["spouses"]:
@@ -505,11 +555,11 @@ def create_family_tree_dot_content(gedcom_parser, individual):
 
             dot_content.append(
                 f'    "{spouse_id}" [label="{spouse_name}{dates_info}", '
-                f'fillcolor="#FFB6C1"];'
+                f'fillcolor="#FFE6F0"];'
             )
             dot_content.append(
                 f'    "{main_id}" -> "{spouse_id}" [label="married", '
-                f'style=dashed, dir=none];'
+                f'style=solid, dir=none, color="#CC6677", penwidth=2.0];'
             )
 
         # Force main person and spouse(s) to be at the same rank (horizontal level)
@@ -517,6 +567,7 @@ def create_family_tree_dot_content(gedcom_parser, individual):
             spouse_list = '"; "'.join(spouse_ids)
             dot_content.append(f'    {{ rank=same; "{main_id}"; "{spouse_list}"; }}')
         dot_content.append("")
+
     # Add children (below)
     if family_info["children"]:
         dot_content.append("    // Children")
@@ -527,7 +578,7 @@ def create_family_tree_dot_content(gedcom_parser, individual):
 
             dot_content.append(
                 f'    "{child_id}" [label="{child_name}{dates_info}", '
-                f'fillcolor="#E0FFFF"];'
+                f'fillcolor="#E6FFE6"];'
             )
             dot_content.append(f'    "{main_id}" -> "{child_id}" [label="parent"];')
         dot_content.append("")
