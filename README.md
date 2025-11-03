@@ -1,44 +1,116 @@
 # GEDCOM Visualizer
 
-A collection of Python scripts for parsing and visualizing GEDCOM genealogy files.
-This project provides tools to extract, format,
-and present genealogical data in human-readable formats with A4 paper formatting for European use.
+**A comprehensive Python toolkit for creating beautiful, professional genealogy documents from GEDCOM files.**
 
-## Features
+GEDCOM Visualizer transforms raw genealogical data into polished, readable documents with visual family trees, cross-referenced relationships, and detailed biographical information. Perfect for family historians, genealogists, and researchers who want to create professional-quality family documentation.
 
-The project consists of three main scripts:
+> **Note**: This project serves as an evaluation of AI-assisted development using GitHub Copilot, demonstrating how modern coding assistants can enhance productivity in genealogical software development. Please use with care.
 
-1. **List and Search** (`list_search.py`) - Browse and search individuals in a GEDCOM file
-2. **Generate AsciiDoc** (`generate_asciidoc.py`) - Create formatted documents with smart name handling (married/maiden names) and personalized chapter titles
-3. **Convert to PDF** (`convert_to_pdf.py`) - Transform AsciiDoc documents into A4 PDF format with Unicode support
+> **✨ Fully functional and production-ready** - Successfully processes MyHeritage exports and standard GEDCOM files with comprehensive error handling and robust parsing.
 
-## Development Environment Options
+## What This Project Does
 
-### Option 1: VS Code Development Container (Recommended)
+🔍 **Parse GEDCOM Files**: Robust parsing of GEDCOM genealogy files with support for various formats including MyHeritage exports
 
-The easiest way to get started is using the VS Code Development Container:
+📊 **Generate Visual Family Trees**: Create horizontal family tree diagrams showing relationships between parents, spouses, and children
+
+📖 **Create Comprehensive Documents**: Generate detailed individual profiles with:
+- Personal information and life events
+- Family relationships with cross-reference navigation
+- Birth and death dates in ISO format (YYYY-MM-DD)
+- Residence history, sources, and metadata
+- Smart name handling (married names, maiden names)
+
+🎨 **Professional PDF Output**: Convert documents to A4 PDFs with:
+- Clickable cross-references between family members
+- Embedded family tree diagrams
+- Clean, European-standard formatting
+- Unicode support for international names
+
+## Key Features
+
+- **Smart Name Display**: Shows married names prominently with maiden names indicated (e.g., "Anna Valfrida Carlsson (born Nilsson)")
+- **Cross-Reference Navigation**: Click between family members in PDF documents
+- **Flexible Date Formatting**: Converts various date formats to ISO standard (YYYY-MM-DD)
+- **Visual Family Trees**: Graphviz-generated diagrams with proper relationship positioning
+- **Comprehensive Biographical Data**: Life events, residences, sources, and record information
+- **Customizable Output**: Command-line options to include/exclude sections as needed
+
+## Core Tools
+
+1. **`gedcom-list`** - Browse and search individuals in GEDCOM files
+2. **`gedcom-generate`** - Create comprehensive AsciiDoc documents for individuals
+3. **`gedcom-convert`** - Transform AsciiDoc documents into professional A4 PDFs
+
+## Quick Example
+
+```bash
+# Find people in your GEDCOM file
+gedcom-list family.ged --search "Smith"
+
+# Generate a complete family document
+gedcom-generate family.ged @I500033@ --generations 2
+
+# Convert to professional PDF
+gedcom-convert albin_johansson_karlsson.adoc
+```
+
+**Output includes:**
+- Personal information with dates in ISO format (1890-03-29)
+- Visual family tree diagrams showing relationships
+- Cross-referenced family relationships (clickable in PDF)
+- Comprehensive biographical information
+- Professional A4 formatting suitable for printing
+
+## Development Environment
+
+### 🚀 Primary Environment: VS Code Development Container (Recommended)
+
+**This project is designed to work seamlessly with VS Code and devcontainers.** This is the primary and recommended development environment.
+
+#### Why VS Code + Devcontainer?
+
+- **Zero Setup**: All dependencies (Python, LaTeX, Graphviz) are automatically configured
+- **Consistent Environment**: Same setup works across Windows, macOS, and Linux
+- **Integrated Development**: Built-in debugging, testing, and task automation
+- **Immediate Productivity**: Start coding within minutes of cloning the repository
+
+#### Quick Start
 
 1. **Prerequisites**:
-   - VS Code with the Dev Containers extension
-   - Docker or Podman installed
+   - [VS Code](https://code.visualstudio.com/) with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+   - Docker Desktop or Podman installed
 
-2. **Setup**:
-   - Open the project in VS Code
+2. **One-Click Setup**:
+   ```bash
+   git clone https://github.com/jsiei97/gedcom_visualizer.git
+   cd gedcom_visualizer
+   code .
+   ```
    - Click "Reopen in Container" when prompted, or
    - Press `Ctrl+Shift+P` → "Dev Containers: Reopen in Container"
 
-3. **Benefits**:
-   - Automatic setup of all dependencies
-   - Pre-configured debugging and tasks
-   - Consistent environment across all developers
-   - No need to manually install Python packages
+3. **Start Using**:
+   ```bash
+   # Inside VS Code's integrated terminal
+   gedcom-list examples/sample.ged
+   gedcom-generate examples/sample.ged @I1@ -o sample.adoc
+   gedcom-convert sample.adoc -o sample.pdf
+   ```
 
-See [`.devcontainer/README.md`](.devcontainer/README.md) for detailed instructions.
+#### What You Get
 
-### Option 2: Traditional Container Setup (Ubuntu 24.04)
+- **Full Python environment** with all genealogy libraries
+- **LaTeX/TeXLive** for professional PDF generation
+- **Graphviz** for family tree visualization
+- **Pre-configured debugging** and code formatting
+- **Integrated testing** with automated workflows
 
-This tool is designed to run inside a container on Ubuntu 24.04 using Podman and DistroBox.
-The container includes all necessary dependencies (Python, LaTeX, Graphviz, and required libraries).
+See [`.devcontainer/README.md`](.devcontainer/README.md) for advanced configuration options.
+
+### Alternative: Traditional Container Setup (Ubuntu/Linux)
+
+**Alternative approach** for users who prefer traditional containerization on Ubuntu 24.04 using Podman and DistroBox. The container includes all necessary dependencies (Python, LaTeX, Graphviz, and required libraries).
 
 #### Prerequisites
 
@@ -85,10 +157,29 @@ from within the container using the same paths.
 For example, if your GEDCOM file is at `~/Documents/family.ged` on your host system,
 you can access it at `~/Documents/family.ged` inside the container.
 
-## Usage Inside the Container
+## Usage
 
-**Important:** All Python scripts should be executed inside the container environment.
-After entering the container with `distrobox enter gedcom-viz`, you can use the following commands.
+### Using VS Code Devcontainer (Recommended)
+
+Open the project in VS Code with the devcontainer, then use the integrated terminal:
+
+```bash
+# All commands work directly in VS Code's terminal
+gedcom-list ~/Documents/family.ged
+gedcom-generate ~/Documents/family.ged @I1@ -o output.adoc
+gedcom-convert output.adoc -o output.pdf
+```
+
+### Using Traditional Container
+
+If using the alternative DistroBox setup, enter the container first:
+
+```bash
+distrobox enter gedcom-viz
+# Then run the commands as shown above
+```
+
+## Command Reference
 
 The package provides three convenient command-line tools:
 
@@ -173,6 +264,9 @@ gedcom-convert /tmp/sample.adoc -o /tmp/sample.pdf
 
 ```
 gedcom_visualizer/
+├── .devcontainer/              # 🚀 VS Code devcontainer configuration
+│   ├── devcontainer.json      # Container settings and features
+│   └── README.md              # Devcontainer documentation
 ├── gedcom_visualizer/          # Main package
 │   ├── __init__.py            # Package initialization
 │   ├── list_search.py         # Script 1: List and search
@@ -180,9 +274,10 @@ gedcom_visualizer/
 │   └── convert_to_pdf.py      # Script 3: Convert to PDF
 ├── examples/                   # Example files
 │   └── sample.ged             # Sample GEDCOM file
-├── Dockerfile                 # Container definition
-├── build-container.sh         # Script to build the container
-├── run-distrobox.sh          # Script to set up DistroBox
+├── .vscode/                    # VS Code workspace configuration
+├── Dockerfile                 # Container definition (alternative setup)
+├── build-container.sh         # Script to build container (alternative)
+├── run-distrobox.sh          # Script to set up DistroBox (alternative)
 ├── cleanup.sh                # Script to clean temporary files
 ├── requirements.txt           # Python dependencies
 ├── setup.py                   # Package installation
